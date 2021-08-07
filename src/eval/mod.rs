@@ -16,12 +16,16 @@ impl Engine {
                 Err(TailRec(next, nenv)) => {
                     expr = next;
                     env = nenv;
-                },
+                }
             };
         }
     }
     /// Helper function that either returns Err(next expr) or Ok(final result)
-    fn eval_rec(&mut self, env: Gc<GcCell<Namespace>>, expr: Gc<Expr>) -> Result<Gc<Expr>, TailRec> {
+    fn eval_rec(
+        &mut self,
+        env: Gc<GcCell<Namespace>>,
+        expr: Gc<Expr>,
+    ) -> Result<Gc<Expr>, TailRec> {
         match &*expr {
             // Passthru literals unchanged
             Expr::Integer(_)
@@ -58,9 +62,7 @@ impl Engine {
                     }
                 };
                 match &*car {
-                    &Expr::SpecialForm { func, .. } => {
-                        func(self, env, &args)
-                    }
+                    &Expr::SpecialForm { func, .. } => func(self, env, &args),
                     &Expr::NativeProcedure { func, .. } => {
                         let evaled_args = args
                             .into_iter()
@@ -117,11 +119,18 @@ impl Engine {
 
                         let (body, tail) = match &body[..] {
                             [body @ .., tail] => (body, tail),
-                            [] => unreachable!(),
+                            // "ok" because we want to shortcut out
+                            // if only ControlFlow was stable
+                            [] => {
+                                return Ok(self.make_err(
+                                    "application: had a procedure with no body sexprs".to_string(),
+                                    None,
+                                ))
+                            }
                         };
-                        body
-                            .iter()
-                            .map(|expr| self.eval(arg_env.clone(), expr.clone()));
+                        for expr in body {
+                            self.eval(arg_env.clone(), expr.clone());
+                        }
                         Err(TailRec(tail.clone(), arg_env))
                     }
                     _ => Ok(self.make_err("application: not a procedure".to_string(), Some(car))),

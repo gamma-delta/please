@@ -28,6 +28,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("define", define as _),
         ("lambda", lambda_unvariadic as _),
         ("lambda*", lambda_variadic as _),
+        ("if", if_ as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {

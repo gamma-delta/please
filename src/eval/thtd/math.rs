@@ -1,5 +1,7 @@
 //! Mathematics? That's for eggheads!
 //! Also boolean operators.
+use crate::eval::TailRec;
+
 use super::*;
 
 pub fn add(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
@@ -107,4 +109,25 @@ pub fn xor(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
         return ono;
     };
     engine.make_bool(engine.is_truthy(args[0].to_owned()) != engine.is_truthy(args[1].to_owned()))
+}
+
+pub fn if_(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<Gc<Expr>, TailRec> {
+    if let Err(ono) = check_argc(engine, args, 3, 3) {
+        return Ok(ono);
+    }
+
+    let selector = engine.eval(env.clone(), args[0].to_owned());
+
+    Err(TailRec(
+        if engine.is_truthy(selector) {
+            args[1].to_owned()
+        } else {
+            args[2].to_owned()
+        },
+        env,
+    ))
 }

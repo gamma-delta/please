@@ -1,8 +1,8 @@
-//! Defining functions.
+//! Defining and composing functions.
 use super::*;
 use crate::eval::TailRec;
 
-pub fn lambda(
+fn lambda(
     engine: &mut Engine,
     env: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
@@ -62,4 +62,10 @@ pub fn lambda_variadic(
     args: &[Gc<Expr>],
 ) -> Result<Gc<Expr>, TailRec> {
     lambda(engine, env, args, true)
+}
+
+pub fn fold(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+    // (fold acc list (lambda acc elm -> res))
+
+    todo!()
 }

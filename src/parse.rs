@@ -192,8 +192,8 @@ pub fn read_many(whole: &str, engine: &mut Engine) -> Result<Vec<Expr>, ExprPars
         let (expr, rest) = read_expr(s, engine).map_err(|err| ExprParseError::new(whole, err))?;
         if let Some(expr) = expr {
             out.push(expr);
-            s = rest;
         }
+        s = rest;
     }
 
     Ok(out)
@@ -221,7 +221,7 @@ pub fn read_one(s: &str, engine: &mut Engine) -> Result<Expr, ExprParseError> {
     } else {
         // god this is so stupid just let me [0]
         let mut rust_bad = exprs;
-        Ok(rust_bad.remove(0))
+        Ok(rust_bad.swap_remove(0))
     }
 }
 
@@ -413,40 +413,38 @@ fn try_read_sexpr<'a>(
         state: &mut Engine,
         original_rest: &'b str,
     ) -> Result<(Option<(Gc<Expr>, Gc<Expr>)>, &'b str), ExprParseErrorLimited<'b>> {
-        let s = s.trim();
+        let s = s.trim_start();
 
-        let (car, rest) = read_expr(s, state)?;
-        match car {
-            Some(car) => {
-                let (cdr, rest) = recurse(rest, opener, closer, state, original_rest)?;
-                let cdr = if let Some((cdr0, cdr1)) = cdr {
-                    Gc::new(Expr::Pair(cdr0, cdr1))
-                } else {
-                    // that's the null, point to null
-                    Gc::new(Expr::Nil)
-                };
-                Ok((Some((Gc::new(car), cdr)), rest))
-            }
-            None => {
-                if let Some(rest) = s.strip_prefix(closer) {
-                    // we can finally rest
-                    Ok((None, rest))
-                } else if s.starts_with(is_closer) {
-                    let (start, _) = string_pos(original_rest, s);
-                    Err(ExprParseErrorLimited {
-                        data: ExprParseErrorInfo::WrongCloseParen {
-                            opener,
-                            expected_closer: closer,
-                            got_closer: s.chars().next().unwrap(),
-                        },
-                        offender: &original_rest[..=start],
-                    })
-                } else {
-                    Err(ExprParseErrorLimited {
-                        data: ExprParseErrorInfo::ExpectedCloseParen { opener, closer },
-                        offender: original_rest,
-                    })
+        if let Some(rest) = s.strip_prefix(closer) {
+            // we can finally rest
+            Ok((None, rest))
+        } else if s.starts_with(is_closer) {
+            let (start, _) = string_pos(original_rest, s);
+            Err(ExprParseErrorLimited {
+                data: ExprParseErrorInfo::WrongCloseParen {
+                    opener,
+                    expected_closer: closer,
+                    got_closer: s.chars().next().unwrap(),
+                },
+                offender: &original_rest[..=start],
+            })
+        } else {
+            let (car, rest) = read_expr(s, state)?;
+            match car {
+                Some(car) => {
+                    let (cdr, rest) = recurse(rest, opener, closer, state, original_rest)?;
+                    let cdr = if let Some((cdr0, cdr1)) = cdr {
+                        Gc::new(Expr::Pair(cdr0, cdr1))
+                    } else {
+                        // that's the null, point to null
+                        Gc::new(Expr::Nil)
+                    };
+                    Ok((Some((Gc::new(car), cdr)), rest))
                 }
+                None => Err(ExprParseErrorLimited {
+                    data: ExprParseErrorInfo::ExpectedCloseParen { opener, closer },
+                    offender: original_rest,
+                }),
             }
         }
     }
@@ -455,7 +453,7 @@ fn try_read_sexpr<'a>(
     if s.is_empty() {
         let opener = rest.chars().next()?;
         if let Some(closer) = match_paren(opener) {
-            let s = rest[opener.len_utf8()..].trim_start();
+            let s = &rest[opener.len_utf8()..];
 
             return match recurse(s, opener, closer, state, rest) {
                 Ok((Some((car, cdr)), rest)) => Some(Ok((Some((car, cdr)), rest))),
