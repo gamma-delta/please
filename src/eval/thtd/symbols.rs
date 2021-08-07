@@ -1,7 +1,7 @@
 //! Manipulating symbols
 use super::*;
 
-pub fn symbol2string(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn symbol2string(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_argc(engine, args, 1, 1) {
         return ono;
     };
@@ -19,7 +19,7 @@ pub fn symbol2string(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     Gc::new(Expr::String(string))
 }
 
-pub fn string2symbol(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn string2symbol(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_argc(engine, args, 1, 1) {
         return ono;
     };

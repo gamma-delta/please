@@ -1,7 +1,7 @@
 //! Messing with strings.
 use super::*;
 
-pub fn to_string(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn to_string(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(e) = check_argc(engine, args, 1, 1) {
         return e;
     }
@@ -9,7 +9,7 @@ pub fn to_string(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     Gc::new(Expr::String(string))
 }
 
-pub fn prn(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn prn(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(e) = check_argc(engine, args, 1, 2) {
         return e;
     }

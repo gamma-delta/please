@@ -3,7 +3,7 @@
 use super::*;
 
 /// return whether two things are the same object
-pub fn id_equal(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn id_equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_min_argc(engine, args, 1) {
         return ono;
     };
@@ -19,7 +19,7 @@ pub fn id_equal(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
 }
 
 /// return whether two things are equal w/o type juggling
-pub fn equal(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_min_argc(engine, args, 1) {
         return ono;
     };

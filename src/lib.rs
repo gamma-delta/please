@@ -45,7 +45,7 @@ pub enum Expr {
     NativeProcedure {
         #[derivative(Debug(format_with = "Expr::func_formatter"))]
         #[unsafe_ignore_trace]
-        func: fn(&mut Engine, &[Gc<Expr>]) -> Gc<Expr>,
+        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
         name: u64,
     },
 
@@ -67,7 +67,7 @@ impl Expr {
     }
     #[allow(clippy::type_complexity)]
     fn func_formatter(
-        _: &fn(&mut Engine, &[Gc<Expr>]) -> Gc<Expr>,
+        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
         f: &mut std::fmt::Formatter,
     ) -> Result<(), std::fmt::Error> {
         write!(f, "fn(...)")

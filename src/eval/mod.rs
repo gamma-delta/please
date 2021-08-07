@@ -72,7 +72,7 @@ impl Engine {
                             .map(|expr| self.eval(env.clone(), expr))
                             .collect::<Vec<_>>();
 
-                        TailRec::Exit(func(self, &evaled_args))
+                        TailRec::Exit(func(self, env, &evaled_args))
                     }
                     Expr::Procedure {
                         args: arg_names,

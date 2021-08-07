@@ -1,7 +1,7 @@
 //! Constructing and working with pairs and lists.
 use super::*;
 
-pub fn cons(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn cons(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(e) = check_argc(engine, args, 2, 2) {
         return e;
     }
@@ -9,7 +9,7 @@ pub fn cons(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     Gc::new(Expr::Pair(args[0].to_owned(), args[1].to_owned()))
 }
 
-pub fn car(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn car(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(e) = check_argc(engine, args, 1, 1) {
         return e;
     }
@@ -21,7 +21,7 @@ pub fn car(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     car.clone()
 }
 
-pub fn cdr(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn cdr(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(e) = check_argc(engine, args, 1, 1) {
         return e;
     }

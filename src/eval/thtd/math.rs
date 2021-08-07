@@ -63,7 +63,7 @@ num_ops! {
     (std::ops::Div => div /)
 }
 
-pub fn add(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn add(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     let mut sum = Num::Int(0);
     for (idx, arg) in args.iter().enumerate() {
         let num = match Num::from_expr(engine, args[0].to_owned()) {
@@ -75,7 +75,7 @@ pub fn add(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     sum.to_expr()
 }
 
-pub fn sub(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn sub(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_min_argc(engine, args, 1) {
         return ono;
     };
@@ -104,7 +104,7 @@ pub fn sub(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     difference.to_expr()
 }
 
-pub fn mul(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn mul(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     let mut product = Num::Int(1);
     for (idx, arg) in args.iter().enumerate() {
         let num = match Num::from_expr(engine, args[0].to_owned()) {
@@ -116,7 +116,7 @@ pub fn mul(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     product.to_expr()
 }
 
-pub fn div(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn div(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_min_argc(engine, args, 1) {
         return ono;
     };
@@ -145,24 +145,24 @@ pub fn div(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     quotient.to_expr()
 }
 
-pub fn and(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn and(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     let res = args.iter().all(|expr| engine.is_truthy(expr.to_owned()));
     engine.make_bool(res)
 }
 
-pub fn or(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn or(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     let res = args.iter().any(|expr| engine.is_truthy(expr.to_owned()));
     engine.make_bool(res)
 }
 
-pub fn not(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn not(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_argc(engine, args, 1, 1) {
         return ono;
     };
     engine.make_bool(!engine.is_truthy(args[0].to_owned()))
 }
 
-pub fn xor(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn xor(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_argc(engine, args, 2, 2) {
         return ono;
     };
@@ -188,7 +188,7 @@ pub fn if_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
 
 macro_rules! comparisons {
     (($name:ident $op:tt)) => {
-        pub fn $name(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+        pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
             if let Err(ono) = check_argc(engine, args, 2, 2) {
                 return ono;
             };
@@ -222,7 +222,7 @@ comparisons! {
     (ge >=)
 }
 
-pub fn num_eq(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+pub fn num_eq(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     if let Err(ono) = check_min_argc(engine, args, 1) {
         return ono;
     };
