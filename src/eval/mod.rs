@@ -4,7 +4,13 @@ mod thtd;
 use gc::{Gc, GcCell};
 pub use thtd::add_thtandard_library;
 
-pub struct TailRec(Gc<Expr>, Gc<GcCell<Namespace>>);
+/// Do we use tail recursion for a special form?
+pub enum TailRec {
+    /// No, return this and exit
+    Exit(Gc<Expr>),
+    /// Yes, eval this in the given namespace
+    TailRecur(Gc<Expr>, Gc<GcCell<Namespace>>),
+}
 
 impl Engine {
     /// Evaluate the expression at the given location on the heap,
@@ -12,8 +18,8 @@ impl Engine {
     pub fn eval(&mut self, mut env: Gc<GcCell<Namespace>>, mut expr: Gc<Expr>) -> Gc<Expr> {
         loop {
             match self.eval_rec(env, expr) {
-                Ok(val) => break val,
-                Err(TailRec(next, nenv)) => {
+                TailRec::Exit(val) => break val,
+                TailRec::TailRecur(next, nenv) => {
                     expr = next;
                     env = nenv;
                 }
@@ -21,11 +27,7 @@ impl Engine {
         }
     }
     /// Helper function that either returns Err(next expr) or Ok(final result)
-    fn eval_rec(
-        &mut self,
-        env: Gc<GcCell<Namespace>>,
-        expr: Gc<Expr>,
-    ) -> Result<Gc<Expr>, TailRec> {
+    fn eval_rec(&mut self, env: Gc<GcCell<Namespace>>, expr: Gc<Expr>) -> TailRec {
         match &*expr {
             // Passthru literals unchanged
             Expr::Integer(_)
@@ -33,7 +35,7 @@ impl Engine {
             | Expr::String(_)
             | Expr::SpecialForm { .. }
             | Expr::NativeProcedure { .. }
-            | Expr::Procedure { .. } => Ok(expr),
+            | Expr::Procedure { .. } => TailRec::Exit(expr),
             // Lookup the symbol
             &Expr::Symbol(id) => {
                 let idx = env.borrow().lookup(id);
@@ -47,7 +49,7 @@ impl Engine {
                         Some(expr),
                     ),
                 };
-                Ok(res)
+                TailRec::Exit(res)
             }
             Expr::Pair(car, cdr) => {
                 let car = self.eval(env.clone(), car.clone());
@@ -55,7 +57,7 @@ impl Engine {
                 let args = match self.sexp_to_list(cdr.clone()) {
                     Some(it) => it,
                     None => {
-                        return Ok(self.make_err(
+                        return TailRec::Exit(self.make_err(
                             "application: cdr must be a proper list".to_string(),
                             Some(cdr.clone()),
                         ))
@@ -69,7 +71,7 @@ impl Engine {
                             .map(|expr| self.eval(env.clone(), expr))
                             .collect::<Vec<_>>();
 
-                        Ok(func(self, &evaled_args))
+                        TailRec::Exit(func(self, &evaled_args))
                     }
                     Expr::Procedure {
                         args: arg_names,
@@ -111,7 +113,7 @@ impl Engine {
                                     Gc::new(Expr::Symbol(truth)),
                                     Gc::new(Expr::Integer(idx as _)),
                                 ]);
-                                return Ok(self.make_err(message, Some(data)));
+                                return TailRec::Exit(self.make_err(message, Some(data)));
                             }
                         }
 
@@ -119,10 +121,8 @@ impl Engine {
 
                         let (body, tail) = match &body[..] {
                             [body @ .., tail] => (body, tail),
-                            // "ok" because we want to shortcut out
-                            // if only ControlFlow was stable
                             [] => {
-                                return Ok(self.make_err(
+                                return TailRec::Exit(self.make_err(
                                     "application: had a procedure with no body sexprs".to_string(),
                                     None,
                                 ))
@@ -131,9 +131,11 @@ impl Engine {
                         for expr in body {
                             self.eval(arg_env.clone(), expr.clone());
                         }
-                        Err(TailRec(tail.clone(), arg_env))
+                        TailRec::TailRecur(tail.clone(), arg_env)
                     }
-                    _ => Ok(self.make_err("application: not a procedure".to_string(), Some(car))),
+                    _ => TailRec::Exit(
+                        self.make_err("application: not a procedure".to_string(), Some(car)),
+                    ),
                 }
             }
         }

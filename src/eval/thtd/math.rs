@@ -111,23 +111,19 @@ pub fn xor(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
     engine.make_bool(engine.is_truthy(args[0].to_owned()) != engine.is_truthy(args[1].to_owned()))
 }
 
-pub fn if_(
-    engine: &mut Engine,
-    env: Gc<GcCell<Namespace>>,
-    args: &[Gc<Expr>],
-) -> Result<Gc<Expr>, TailRec> {
+pub fn if_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
     if let Err(ono) = check_argc(engine, args, 3, 3) {
-        return Ok(ono);
+        return TailRec::Exit(ono);
     }
 
     let selector = engine.eval(env.clone(), args[0].to_owned());
 
-    Err(TailRec(
+    TailRec::TailRecur(
         if engine.is_truthy(selector) {
             args[1].to_owned()
         } else {
             args[2].to_owned()
         },
         env,
-    ))
+    )
 }

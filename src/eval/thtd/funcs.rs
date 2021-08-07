@@ -7,7 +7,7 @@ fn lambda(
     env: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
     variadic: bool,
-) -> Result<Gc<Expr>, TailRec> {
+) -> TailRec {
     /*
         (lambda
             (args list)
@@ -15,14 +15,14 @@ fn lambda(
     */
 
     if let Err(err) = check_min_argc(engine, args, 2) {
-        return Ok(err);
+        return TailRec::Exit(err);
     }
 
     let args_list = args[0].clone();
     let args_list = match engine.sexp_to_list(args_list.clone()) {
         Some(it) => it,
         None => {
-            return Ok(bad_arg_type(engine, args_list, 0, "list of symbols"));
+            return TailRec::Exit(bad_arg_type(engine, args_list, 0, "list of symbols"));
         }
     };
     let args_symbols = args_list
@@ -34,7 +34,7 @@ fn lambda(
         .collect::<Result<_, _>>();
     let args_symbols = match args_symbols {
         Ok(it) => it,
-        Err(ono) => return Ok(ono),
+        Err(ono) => return TailRec::Exit(ono),
     };
 
     let body = args[1..].to_owned();
@@ -45,14 +45,14 @@ fn lambda(
         env, // close over the calling context
         variadic,
     };
-    Ok(Gc::new(proc))
+    TailRec::Exit(Gc::new(proc))
 }
 
 pub fn lambda_unvariadic(
     engine: &mut Engine,
     env: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
-) -> Result<Gc<Expr>, TailRec> {
+) -> TailRec {
     lambda(engine, env, args, false)
 }
 
@@ -60,7 +60,7 @@ pub fn lambda_variadic(
     engine: &mut Engine,
     env: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
-) -> Result<Gc<Expr>, TailRec> {
+) -> TailRec {
     lambda(engine, env, args, true)
 }
 
