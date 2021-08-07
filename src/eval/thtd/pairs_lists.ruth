@@ -1,0 +1,6 @@
+(define (list-rev l)
+    (fold () l (lambda (acc elt) (cons elt acc))))
+
+(define (list-len list)
+    (fold 0 list add1))
+

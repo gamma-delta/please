@@ -64,8 +64,10 @@ pub fn lambda_variadic(
     lambda(engine, env, args, true)
 }
 
-pub fn fold(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
-    // (fold acc list (lambda acc elm -> res))
+pub fn apply(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+    if let Err(ono) = check_min_argc(engine, args, 1) {
+        return ono;
+    }
 
     todo!()
 }

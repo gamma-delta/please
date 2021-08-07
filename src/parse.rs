@@ -309,6 +309,9 @@ fn read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Option<Ex
     } else if let Some(int) = try_read_int(s, state) {
         let (int, rest) = int?;
         Ok((Some(Expr::Integer(int)), rest))
+    } else if let Some(float) = try_read_float(s, state) {
+        let (float, rest) = float?;
+        Ok((Some(Expr::Float(float)), rest))
     } else if let Some(string) = try_read_string(s, state) {
         let (string, rest) = string?;
         Ok((Some(Expr::String(string)), rest))
@@ -333,8 +336,23 @@ fn read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Option<Ex
     }
 }
 
+fn try_read_float<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a, f64>> {
+    let (s, rest) = read_until_delim(s);
+    if s.starts_with(|c: char| c.is_numeric() || c == '-' || c == '+' || c == '.') {
+        let f = s.parse::<f64>().ok();
+        f.map(|f| Ok((f, rest)))
+    } else {
+        None
+    }
+}
+
 fn try_read_int<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a, i64>> {
     let (whole, rest) = read_until_delim(s);
+    if whole.contains('.') {
+        // maybe a float, who knows? it's sure not an int
+        return None;
+    }
+
     if whole.starts_with(|c: char| c.is_numeric() || c == '-' || c == '+') {
         let (radix, prefix, s) = if whole.starts_with(&['+', '-'][..]) {
             (10, None, whole)

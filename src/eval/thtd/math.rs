@@ -4,22 +4,75 @@ use crate::eval::TailRec;
 
 use super::*;
 
-pub fn add(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
-    let res: Result<i64, Gc<Expr>> = args
-        .iter()
-        .enumerate()
-        .map(|(idx, arg)| {
-            if let Expr::Integer(int) = &**arg {
-                Ok(int)
-            } else {
-                Err(bad_arg_type(engine, arg.clone(), idx, "int"))
-            }
+#[derive(Clone, Copy)]
+enum Num {
+    Int(i64),
+    Float(f64),
+}
+
+impl Num {
+    fn to_expr(self) -> Gc<Expr> {
+        Gc::new(match self {
+            Num::Int(int) => Expr::Integer(int),
+            Num::Float(float) => Expr::Float(float),
         })
-        .sum();
-    match res {
-        Ok(it) => Gc::new(Expr::Integer(it)),
-        Err(ono) => ono,
     }
+
+    fn from_expr(engine: &mut Engine, expr: Gc<Expr>) -> Result<Num, Gc<Expr>> {
+        Ok(if let Expr::Integer(int) = &*expr {
+            Num::Int(*int)
+        } else if let Expr::Float(float) = &*expr {
+            Num::Float(*float)
+        } else {
+            return Err(bad_arg_type(engine, expr.clone(), 0, "number"));
+        })
+    }
+
+    fn as_float(self) -> f64 {
+        match self {
+            Num::Int(int) => int as _,
+            Num::Float(float) => float,
+        }
+    }
+}
+
+macro_rules! num_ops {
+    (($trait:path => $name:ident $op:tt)) => {
+        impl $trait for Num {
+            type Output = Self;
+            fn $name(self, rhs: Self) -> Self::Output {
+                match (self, rhs) {
+                    (Num::Int(l), Num::Int(r)) => Num::Int(l $op r),
+                    (Num::Float(l), Num::Int(r)) => Num::Float(l $op r as f64),
+                    (Num::Int(l), Num::Float(r)) => Num::Float(l as f64 $op r),
+                    (Num::Float(l), Num::Float(r)) => Num::Float(l $op r),
+                }
+            }
+        }
+    };
+    ($head:tt $($tail:tt)*) => {
+        num_ops! { $head }
+        num_ops! { $($tail)* }
+    }
+}
+
+num_ops! {
+    (std::ops::Add => add +)
+    (std::ops::Sub => sub -)
+    (std::ops::Mul => mul *)
+    (std::ops::Div => div /)
+}
+
+pub fn add(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+    let mut sum = Num::Int(0);
+    for (idx, arg) in args.iter().enumerate() {
+        let num = match Num::from_expr(engine, args[0].to_owned()) {
+            Ok(it) => it,
+            Err(ono) => return ono,
+        };
+        sum = sum + num;
+    }
+    sum.to_expr()
 }
 
 pub fn sub(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
@@ -27,64 +80,69 @@ pub fn sub(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
         return ono;
     };
 
-    let initial = if let Expr::Integer(num) = &*args[0].to_owned() {
-        *num
-    } else {
-        return bad_arg_type(engine, args[0].to_owned(), 0, "int");
+    let mut difference = match Num::from_expr(engine, args[0].to_owned()) {
+        Ok(it) => it,
+        Err(ono) => return ono,
     };
-    Gc::new(Expr::Integer(if args.len() == 1 {
-        -initial
-    } else {
-        let rest_sum: Result<i64, _> = args[1..]
-            .iter()
-            .enumerate()
-            .map(|(idx, expr)| {
-                if let Expr::Integer(int) = **expr {
-                    Ok(int)
-                } else {
-                    Err(bad_arg_type(engine, expr.to_owned(), idx, "int"))
-                }
-            })
-            .sum();
-        match rest_sum {
-            Ok(it) => initial - it,
-            Err(ono) => return ono,
+
+    if args.len() == 1 {
+        return match difference {
+            Num::Int(int) => Num::Int(-int),
+            Num::Float(float) => Num::Float(-float),
         }
-    }))
+        .to_expr();
+    }
+
+    for (idx, arg) in args.iter().enumerate().skip(1) {
+        let num = match Num::from_expr(engine, args[0].to_owned()) {
+            Ok(it) => it,
+            Err(ono) => return ono,
+        };
+        difference = difference - num;
+    }
+
+    difference.to_expr()
 }
 
 pub fn mul(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
-    let mut product = 1;
+    let mut product = Num::Int(1);
     for (idx, arg) in args.iter().enumerate() {
-        if let Expr::Integer(int) = **arg {
-            product *= int
-        } else {
-            return bad_arg_type(engine, arg.clone(), idx, "int");
-        }
+        let num = match Num::from_expr(engine, args[0].to_owned()) {
+            Ok(it) => it,
+            Err(ono) => return ono,
+        };
+        product = product * num;
     }
-    Gc::new(Expr::Integer(product))
+    product.to_expr()
 }
 
-pub fn div_floor(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
-    if let Err(ono) = check_min_argc(engine, args, 2) {
+pub fn div(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+    if let Err(ono) = check_min_argc(engine, args, 1) {
         return ono;
     };
 
-    let mut quotient = if let Expr::Integer(num) = &*args[0].to_owned() {
-        *num
-    } else {
-        return bad_arg_type(engine, args[0].to_owned(), 0, "int");
+    let mut quotient = match Num::from_expr(engine, args[0].to_owned()) {
+        Ok(it) => it,
+        Err(ono) => return ono,
     };
 
-    for (idx, expr) in args[1..].iter().enumerate() {
-        if let Expr::Integer(int) = **expr {
-            quotient /= int;
-        } else {
-            return bad_arg_type(engine, expr.to_owned(), idx, "int");
-        }
+    if args.len() == 1 {
+        let q = match quotient {
+            Num::Int(i) => i as f64,
+            Num::Float(f) => f,
+        };
+        return Num::Float(q.recip()).to_expr();
     }
 
-    Gc::new(Expr::Integer(quotient))
+    for (idx, arg) in args.iter().enumerate().skip(1) {
+        let num = match Num::from_expr(engine, args[0].to_owned()) {
+            Ok(it) => it,
+            Err(ono) => return ono,
+        };
+        quotient = quotient / num;
+    }
+
+    quotient.to_expr()
 }
 
 pub fn and(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
@@ -126,4 +184,70 @@ pub fn if_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
         },
         env,
     )
+}
+
+macro_rules! comparisons {
+    (($name:ident $op:tt)) => {
+        pub fn $name(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+            if let Err(ono) = check_argc(engine, args, 2, 2) {
+                return ono;
+            };
+            let lhs = match Num::from_expr(engine, args[0].to_owned()) {
+                Ok(it) => it,
+                Err(ono) => return ono,
+            };
+            let rhs = match Num::from_expr(engine, args[1].to_owned()) {
+                Ok(it) => it,
+                Err(ono) => return ono,
+            };
+
+            let cmp = if let (Num::Int(l), Num::Int(r)) = (lhs, rhs) {
+                l $op r
+            } else {
+                lhs.as_float() $op rhs.as_float()
+            };
+            engine.make_bool(cmp)
+        }
+    };
+    ($head:tt $($tail:tt)*) => {
+        comparisons! { $head }
+        comparisons! { $($tail)* }
+    };
+}
+
+comparisons! {
+    (lt <)
+    (gt >)
+    (le <=)
+    (ge >=)
+}
+
+pub fn num_eq(engine: &mut Engine, args: &[Gc<Expr>]) -> Gc<Expr> {
+    if let Err(ono) = check_min_argc(engine, args, 1) {
+        return ono;
+    };
+    // unwrap because we just checked
+    let (lhs, rest) = args.split_first().unwrap();
+    let lhs = match Num::from_expr(engine, lhs.to_owned()) {
+        Ok(it) => it,
+        Err(ono) => return ono,
+    };
+    let mut all_eq = true;
+    for rhs in rest {
+        let rhs = match Num::from_expr(engine, rhs.to_owned()) {
+            Ok(it) => it,
+            Err(ono) => return ono,
+        };
+
+        let cmp = if let (Num::Int(l), Num::Int(r)) = (lhs, rhs) {
+            l == r
+        } else {
+            (lhs.as_float() - rhs.as_float()).abs() < 1e10
+        };
+        all_eq = cmp;
+        if !cmp {
+            break;
+        }
+    }
+    engine.make_bool(all_eq)
 }

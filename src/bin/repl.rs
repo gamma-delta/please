@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 use ariadne::Source;
 use gc::Gc;
-use ruth::{Engine, Expr, ExprParseErrorInfo, Namespace};
+use ruth::{Engine, Expr, ExprParseErrorInfo};
 
 fn main() {
     let mut engine = Engine::new();
@@ -26,7 +26,7 @@ fn main() {
 
         io::stdin().read_line(&mut input).unwrap();
         // we try to be done
-        let res = engine.read_source(&input);
+        let res = engine.read_one(&input);
         let expr = match res {
             Ok(it) => Ok(it),
             Err(ohno) => {

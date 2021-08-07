@@ -22,6 +22,8 @@ use gc::{Finalize, Gc, GcCell, Trace};
 #[derivative(Debug)]
 pub enum Expr {
     Integer(i64),
+    Float(f64),
+    String(String),
     /// Interned string.
     ///
     /// This number is the ID of this symbol and is used for quick equality
@@ -31,8 +33,6 @@ pub enum Expr {
     Pair(Gc<Expr>, Gc<Expr>),
     /// Lack of a value
     Nil,
-
-    String(String),
 
     /// Named native special "function" like define, and the symbol of its name.
     SpecialForm {
@@ -107,8 +107,23 @@ impl Engine {
     }
 
     /// Reads the source and return one token from it.
-    pub fn read_source(&mut self, s: &str) -> Result<Expr, ExprParseError> {
+    pub fn read_one(&mut self, s: &str) -> Result<Expr, ExprParseError> {
         parse::read_one(s, self)
+    }
+
+    /// Reads the source and returns everything found in it.
+    pub fn read_many(&mut self, s: &str) -> Result<Vec<Expr>, ExprParseError> {
+        parse::read_many(s, self)
+    }
+
+    /// Read and eval everything in the source file, returning
+    /// the item in tail position (or `()` if there isn't anything).
+    pub fn read_eval(&mut self, s: &str) -> Result<Gc<Expr>, ExprParseError> {
+        Ok(parse::read_many(s, self)?
+            .into_iter()
+            .map(|e| self.eval(self.thtdlib(), Gc::new(e)))
+            .last()
+            .unwrap_or_else(|| Gc::new(Expr::Nil)))
     }
 
     /// Write an expression to a string. Reading this string
@@ -117,6 +132,7 @@ impl Engine {
         fn recur(engine: &Engine, w: &mut impl Write, expr: Gc<Expr>) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
+                Expr::Float(f) => write!(w, "{}", f),
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {
                         write!(w, "{}", s)
@@ -213,6 +229,7 @@ impl Engine {
         fn recur<W: Write>(engine: &Engine, w: &mut W, expr: Gc<Expr>) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
+                Expr::Float(f) => write!(w, "{}", f),
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {
                         write!(w, "{}", s)

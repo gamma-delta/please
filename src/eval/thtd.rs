@@ -1,17 +1,21 @@
 //! Ruth's thtandard library.
 
 mod env;
+mod eq;
 mod funcs;
 mod math;
 mod pairs_lists;
 mod quoting;
 mod strings;
+mod symbols;
 use env::*;
+use eq::*;
 use funcs::*;
 use math::*;
 use pairs_lists::*;
 use quoting::*;
 use strings::*;
+use symbols::*;
 
 use std::io::Write;
 
@@ -21,7 +25,6 @@ use crate::{Engine, Expr, Namespace};
 
 pub fn add_thtandard_library(engine: &mut Engine) {
     let thtdlib = engine.thtdlib();
-    let mut thtdlib = thtdlib.borrow_mut();
 
     for (name, special_form) in [
         ("quote", quote as _),
@@ -29,13 +32,14 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("lambda", lambda_unvariadic as _),
         ("lambda*", lambda_variadic as _),
         ("if", if_ as _),
+        ("let", let_ as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {
             func: special_form,
             name: symbol,
         });
-        thtdlib.insert(symbol, handle);
+        thtdlib.borrow_mut().insert(symbol, handle);
     }
 
     for (name, native_func) in [
@@ -43,7 +47,12 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("+", add as _),
         ("-", sub as _),
         ("*", mul as _),
-        ("//", div_floor as _),
+        ("/", div as _),
+        ("<", lt as _),
+        (">", gt as _),
+        ("<=", le as _),
+        (">=", ge as _),
+        ("=", num_eq as _),
         ("and", and as _),
         ("or", or as _),
         ("not", not as _),
@@ -55,13 +64,19 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("cons", cons as _),
         ("car", car as _),
         ("cdr", cdr as _),
+        // symbols
+        ("string->symbol", string2symbol as _),
+        ("symbol->string", symbol2string as _),
+        // equality
+        ("obj-equal?", id_equal as _),
+        ("equal?", equal as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
             func: native_func,
             name: symbol,
         });
-        thtdlib.insert(symbol, handle);
+        thtdlib.borrow_mut().insert(symbol, handle);
     }
 
     // Atomic constants that mean nothing other than themselves
@@ -69,7 +84,9 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         let symbol = engine.intern_symbol(atom);
         // Have the symbol point to itself so it evals to itself
         // it acts like a literal
-        thtdlib.insert(symbol, Gc::new(Expr::Symbol(symbol)));
+        thtdlib
+            .borrow_mut()
+            .insert(symbol, Gc::new(Expr::Symbol(symbol)));
     }
 
     for (name, thing) in [
@@ -79,7 +96,15 @@ pub fn add_thtandard_library(engine: &mut Engine) {
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(thing);
-        thtdlib.insert(symbol, handle);
+        thtdlib.borrow_mut().insert(symbol, handle);
+    }
+
+    // and the thtdlib impled in ruth itself
+    for source in [
+        include_str!("thtd/funcs.ruth"),
+        include_str!("thtd/math.ruth"),
+    ] {
+        engine.read_eval(source).unwrap();
     }
 }
 

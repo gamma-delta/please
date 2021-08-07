@@ -17,7 +17,7 @@ impl Engine {
     /// put the result on the heap, and return it.
     pub fn eval(&mut self, mut env: Gc<GcCell<Namespace>>, mut expr: Gc<Expr>) -> Gc<Expr> {
         loop {
-            match self.eval_rec(env, expr) {
+            match self.eval_rec(env.clone(), expr) {
                 TailRec::Exit(val) => break val,
                 TailRec::TailRecur(next, nenv) => {
                     expr = next;
@@ -31,6 +31,7 @@ impl Engine {
         match &*expr {
             // Passthru literals unchanged
             Expr::Integer(_)
+            | Expr::Float(_)
             | Expr::Nil
             | Expr::String(_)
             | Expr::SpecialForm { .. }
