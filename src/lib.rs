@@ -1,20 +1,23 @@
 mod eval;
 mod parse;
 
+use nonempty::NonEmpty;
+pub use parse::{ExprParseError, ExprParseErrorInfo};
+
 use std::{
     collections::HashMap,
     fmt::{self, Write},
 };
 
-use nonempty::NonEmpty;
-pub use parse::{ExprParseError, ExprParseErrorInfo};
-
-use bimap::BiHashMap;
+#[macro_use]
+extern crate gc;
 #[macro_use]
 extern crate derivative;
-use generational_arena::{Arena, Index};
 
-#[derive(Clone, Derivative)]
+use bimap::BiHashMap;
+use gc::{Finalize, Gc, GcCell, Trace};
+
+#[derive(Derivative, Trace, Finalize)]
 #[derivative(Debug)]
 pub enum Expr {
     Integer(i64),
@@ -24,45 +27,62 @@ pub enum Expr {
     /// and looking up the original string.
     Symbol(u64),
     /// Pointer to two elements.
-    Pair(Index, Index),
+    Pair(Gc<Expr>, Gc<Expr>),
     /// Lack of a value
     Nil,
 
     String(String),
 
-    /// Named native function call, and the symbol of their name
-    NativeFunction {
-        #[derivative(Debug(format_with = "Expr::func_formatter"))]
-        func: fn(&mut Engine, &mut Namespace, &[Index]) -> Expr,
+    /// Named native special "function" like define, and the symbol of its name.
+    SpecialForm {
+        #[derivative(Debug(format_with = "Expr::form_formatter"))]
+        #[unsafe_ignore_trace]
+        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
         name: u64,
+    },
+    /// Named native function and the symbol of its name.
+    NativeProcedure {
+        #[derivative(Debug(format_with = "Expr::func_formatter"))]
+        #[unsafe_ignore_trace]
+        func: fn(&mut Engine, &[Gc<Expr>]) -> Gc<Expr>,
+        name: u64,
+    },
+
+    Procedure {
+        args: Vec<u64>,
+        body: Vec<Gc<Expr>>,
+        env: Gc<GcCell<Namespace>>,
+        variadic: bool,
     },
 }
 
 impl Expr {
-    fn func_formatter(
-        _: &fn(&mut Engine, &mut Namespace, &[Index]) -> Expr,
+    #[allow(clippy::type_complexity)]
+    fn form_formatter(
+        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
         f: &mut std::fmt::Formatter,
     ) -> Result<(), std::fmt::Error> {
-        write!(f, "fn(&mut Engine, &mut Namespace, &[Index]) -> Expr")
+        write!(f, "fn(...)")
+    }
+    #[allow(clippy::type_complexity)]
+    fn func_formatter(
+        _: &fn(&mut Engine, &[Gc<Expr>]) -> Gc<Expr>,
+        f: &mut std::fmt::Formatter,
+    ) -> Result<(), std::fmt::Error> {
+        write!(f, "fn(...)")
     }
 }
 
 /// Execution state and reader.
 #[derive(Debug, Clone)]
 pub struct Engine {
-    /// All data not immediately accessible in an execution.
-    /// This is the heap to an execution's stack.
-    heap: Arena<Expr>,
-
     /// Map of all known interned symbols to their handles, and vice versa
     interned_symbols: BiHashMap<String, u64>,
-    /// Where on the heap symbols are.
-    symbol_poses: HashMap<u64, Index>,
     /// Number of symbols that have ever been created
     akashic_symbol_count: u64,
 
     /// Standard library, aka top level namespace
-    thtdlib: HashMap<u64, Index>,
+    thtdlib: Gc<GcCell<Namespace>>,
 }
 
 impl Default for Engine {
@@ -74,29 +94,187 @@ impl Default for Engine {
 impl Engine {
     pub fn new() -> Self {
         let mut out = Self {
-            heap: Arena::new(),
             interned_symbols: BiHashMap::new(),
-            symbol_poses: HashMap::new(),
             akashic_symbol_count: 0,
-            thtdlib: HashMap::new(),
+            thtdlib: Gc::new(GcCell::new(Namespace {
+                mappings: HashMap::new(),
+                parent: None,
+            })),
         };
         eval::add_thtandard_library(&mut out);
         out
     }
 
-    /// Add an expression to the heap.
-    pub fn insert(&mut self, expr: Expr) -> Index {
-        self.heap.insert(expr)
+    /// Reads the source and return one token from it.
+    pub fn read_source(&mut self, s: &str) -> Result<Expr, ExprParseError> {
+        parse::read_one(s, self)
     }
 
-    /// Get an expression from the heap.
-    pub fn get(&self, index: Index) -> &Expr {
-        self.heap.get(index).unwrap()
+    /// Write an expression to a string. Reading this string
+    /// should yield the same as the original (with some caveats for procedures &c).
+    pub fn write_expr(&self, expr: Gc<Expr>) -> String {
+        fn recur(engine: &Engine, w: &mut impl Write, expr: Gc<Expr>) -> Result<(), fmt::Error> {
+            match &*expr {
+                Expr::Integer(i) => write!(w, "{}", i),
+                Expr::Symbol(sym) => {
+                    if let Some(s) = engine.get_symbol_str(*sym) {
+                        write!(w, "{}", s)
+                    } else {
+                        write!(w, "<unknown #{}>", sym)
+                    }
+                }
+                Expr::Pair(car, cdr) => {
+                    fn write_list<W: Write>(
+                        engine: &Engine,
+                        w: &mut W,
+                        car: Gc<Expr>,
+                        cdr: Gc<Expr>,
+                    ) -> Result<(), fmt::Error> {
+                        recur(engine, w, car)?;
+                        match &*cdr {
+                            // Proper list's end, do nothing
+                            Expr::Nil => Ok(()),
+                            // Proper list, leave space for the next thing.
+                            Expr::Pair(cdar, cddr) => {
+                                write!(w, " ")?;
+                                write_list(engine, w, cdar.to_owned(), cddr.to_owned())
+                            }
+                            // Just a pair
+                            _ => {
+                                write!(w, " . ")?;
+                                recur(engine, w, cdr.to_owned())
+                            }
+                        }
+                    }
+
+                    write!(w, "(")?;
+                    write_list(engine, w, car.clone(), cdr.clone())?;
+                    write!(w, ")")
+                }
+                Expr::Nil => {
+                    write!(w, "()")
+                }
+                Expr::String(s) => {
+                    write!(w, "{:?}", s)
+                }
+                Expr::SpecialForm { name, .. } => {
+                    if let Some(name) = engine.get_symbol_str(*name) {
+                        write!(w, "<special form {}>", name)
+                    } else {
+                        write!(w, "<anonymous special form>")
+                    }
+                }
+                Expr::NativeProcedure { name, .. } => {
+                    if let Some(name) = engine.get_symbol_str(*name) {
+                        write!(w, "<native proc {}>", name)
+                    } else {
+                        write!(w, "<anonymous native proc>")
+                    }
+                }
+                Expr::Procedure {
+                    args,
+                    body,
+                    variadic,
+                    ..
+                } => {
+                    write!(w, "(")?;
+                    if *variadic {
+                        write!(w, "lambda* (")?;
+                    } else {
+                        write!(w, "lambda (")?;
+                    }
+
+                    for (idx, &sym) in args.iter().enumerate() {
+                        let symbol = engine.get_symbol_str(sym).unwrap_or("<unknown>");
+                        write!(w, "{}", symbol)?;
+                        if idx == args.len() - 1 {
+                            write!(w, ")")?;
+                        }
+                    }
+
+                    for body_expr in body {
+                        write!(w, " ")?;
+                        recur(engine, w, body_expr.clone())?;
+                    }
+
+                    write!(w, ")")
+                }
+            }
+        }
+        let mut writer = String::new();
+        recur(self, &mut writer, expr).unwrap();
+        writer
     }
 
-    /// Get an expression from the heap.
-    pub fn get_mut(&mut self, index: Index) -> &mut Expr {
-        self.heap.get_mut(index).unwrap()
+    /// Print the expression to a string
+    /// in a nice and human-readable way.
+    pub fn print_expr(&self, expr: Gc<Expr>) -> String {
+        fn recur<W: Write>(engine: &Engine, w: &mut W, expr: Gc<Expr>) -> Result<(), fmt::Error> {
+            match &*expr {
+                Expr::Integer(i) => write!(w, "{}", i),
+                Expr::Symbol(sym) => {
+                    if let Some(s) = engine.get_symbol_str(*sym) {
+                        write!(w, "{}", s)
+                    } else {
+                        write!(w, "<unknown #{}>", sym)
+                    }
+                }
+                Expr::Pair(car, cdr) => {
+                    fn write_list<W: Write>(
+                        engine: &Engine,
+                        w: &mut W,
+                        car: Gc<Expr>,
+                        cdr: Gc<Expr>,
+                    ) -> Result<(), fmt::Error> {
+                        recur(engine, w, car)?;
+                        match &*cdr {
+                            // Proper list's end, do nothing
+                            Expr::Nil => Ok(()),
+                            // Proper list, leave space for the next thing.
+                            Expr::Pair(cdar, cddr) => {
+                                write!(w, " ")?;
+                                write_list(engine, w, cdar.to_owned(), cddr.to_owned())
+                            }
+                            // Just a pair
+                            _ => {
+                                write!(w, " . ")?;
+                                recur(engine, w, cdr.to_owned())
+                            }
+                        }
+                    }
+
+                    write!(w, "(")?;
+                    write_list(engine, w, car.clone(), cdr.clone())?;
+                    write!(w, ")")
+                }
+                Expr::Nil => {
+                    write!(w, "()")
+                }
+                Expr::String(s) => {
+                    write!(w, "{:?}", s)
+                }
+                Expr::SpecialForm { name, .. } => {
+                    if let Some(name) = engine.get_symbol_str(*name) {
+                        write!(w, "<native func {}>", name)
+                    } else {
+                        write!(w, "<anonymous native func>")
+                    }
+                }
+                Expr::NativeProcedure { name, .. } => {
+                    if let Some(name) = engine.get_symbol_str(*name) {
+                        write!(w, "<native proc {}>", name)
+                    } else {
+                        write!(w, "<anonymous native proc>")
+                    }
+                }
+                Expr::Procedure { .. } => {
+                    write!(w, "<procedure>")
+                }
+            }
+        }
+        let mut writer = String::new();
+        recur(self, &mut writer, expr).unwrap();
+        writer
     }
 
     /// Make or get the symbol handle of the symbol represented by the given string.
@@ -105,8 +283,6 @@ impl Engine {
             *already
         } else {
             let id = self.akashic_symbol_count;
-            let handle = self.heap.insert(Expr::Symbol(id));
-            self.symbol_poses.insert(id, handle);
             self.interned_symbols.insert(sym.to_string(), id);
 
             self.akashic_symbol_count += 1;
@@ -114,53 +290,9 @@ impl Engine {
         }
     }
 
-    /// Find the index of the symbol. Panics if it doesn't exist
-    /// (because it should always be put on the heap somewhere.)
-    pub fn find_symbol(&self, symbol_id: u64) -> Index {
-        *self.symbol_poses.get(&symbol_id).unwrap()
-    }
-
-    pub fn read_source(&mut self, s: &str) -> Result<Expr, ExprParseError> {
-        parse::read_entire(s, self)
-    }
-
-    pub fn print_expr(&self, idx: Index) -> String {
-        let mut writer = String::new();
-        self.write_expr(&mut writer, self.get(idx)).unwrap();
-        writer
-    }
-
-    fn write_expr<'a>(&'a self, w: &mut impl Write, expr: &'a Expr) -> Result<(), fmt::Error> {
-        match expr {
-            Expr::Integer(i) => write!(w, "{}", i),
-            Expr::Symbol(sym) => {
-                if let Some(s) = self.get_symbol_str(*sym) {
-                    write!(w, "{}", s)
-                } else {
-                    write!(w, "<unknown #{}>", sym)
-                }
-            }
-            Expr::Pair(car, cdr) => {
-                write!(w, "(")?;
-                self.write_expr(w, self.get(*car))?;
-                write!(w, " ")?;
-                self.write_expr(w, self.get(*cdr))?;
-                write!(w, ")")
-            }
-            Expr::Nil => {
-                write!(w, "()")
-            }
-            Expr::String(s) => {
-                write!(w, "{:?}", s)
-            }
-            Expr::NativeFunction { name, .. } => {
-                if let Some(name) = self.get_symbol_str(*name) {
-                    write!(w, "<native func {}>", name)
-                } else {
-                    write!(w, "<anonymous native func>")
-                }
-            }
-        }
+    /// Get the ID of the already-existing symbol with the given name.
+    pub fn find_symbol(&self, sym: &str) -> Option<u64> {
+        self.interned_symbols.get_by_left(sym).copied()
     }
 
     pub fn get_symbol_str(&self, symbol_id: u64) -> Option<&str> {
@@ -171,59 +303,35 @@ impl Engine {
         }
     }
 
-    /// Return the expr associated with the symbol in
-    /// the given namespace or the top-level namespace.
-    ///
-    /// If this returns Some, it is safe to immediately use it to [`get`]
-    /// an Expr.
-    ///
-    /// [`get`]: Engine::get
-    pub fn lookup_symbol(&self, symbol_id: u64, env: &Namespace) -> Option<Index> {
-        // NonEmpty doesn't impl DoubleEnded wauugh
-        (0..env.mappings.len())
-            .rev()
-            .find_map(|idx| {
-                let map = &env.mappings[idx];
-                map.get(&symbol_id).copied()
-            })
-            .or_else(|| self.thtdlib.get(&symbol_id).copied())
-    }
-
-    /// Get the index of the (possibly newly interned) symbol.
-    pub fn get_symbol_index(&mut self, symbol: &str) -> Index {
-        let id = self.intern_symbol(symbol);
-        self.find_symbol(id)
-    }
-
-    /// Get the index of a symbol without interning.
-    pub fn get_existing_symbol_index(&self, symbol: &str) -> Option<Index> {
-        let id = self.interned_symbols.get_by_left(symbol)?;
-        self.symbol_poses.get(id).copied()
-    }
-
     /// Turn a cons list into a vector of indices.
     /// If the given index or any cdr doesn't point to a `Pair`
     /// or `Null` (ie it's not a proper list)
     /// then `None` is returned.
-    pub fn sexp_to_vector(&self, idx: Index) -> Option<Vec<Index>> {
-        let elt = self.get(idx);
-        let (car, cdr) = match elt {
+    pub fn sexp_to_list(&self, expr: Gc<Expr>) -> Option<Vec<Gc<Expr>>> {
+        let (car, cdr) = match &*expr {
             Expr::Pair(car, cdr) => (car, cdr),
             // finish iterating
             Expr::Nil => return Some(Vec::new()),
             _ => {
-                println!("not proper list: {}", self.print_expr(idx));
                 return None;
             }
         };
-        let mut out = vec![*car];
-        out.extend(self.sexp_to_vector(*cdr)?);
+        let mut out = vec![car.clone()];
+        out.extend(self.sexp_to_list(cdr.clone())?);
         Some(out)
     }
 
-    pub fn is_truthy(&self, idx: Index) -> bool {
-        let data = self.get(idx);
-        match data {
+    /// Create a cons list from the given list, and return its head.
+    pub fn list_to_sexp(&self, list: &[Gc<Expr>]) -> Gc<Expr> {
+        if let Some((car, cdr)) = list.split_first() {
+            Gc::new(Expr::Pair(car.clone(), self.list_to_sexp(cdr)))
+        } else {
+            Gc::new(Expr::Nil)
+        }
+    }
+
+    pub fn is_truthy(&self, expr: Gc<Expr>) -> bool {
+        match &*expr {
             Expr::Nil => false,
             Expr::Symbol(sym) => {
                 let f = self.interned_symbols.get_by_left("false");
@@ -240,38 +348,59 @@ impl Engine {
             _ => true,
         }
     }
-}
 
-/// Mapping of symbols to places in memory.
-///
-/// Starts completely empty.
-#[derive(Clone)]
-pub struct Namespace {
-    mappings: NonEmpty<HashMap<u64, Index>>,
-}
-
-impl Default for Namespace {
-    fn default() -> Self {
-        Self::new()
+    pub fn make_bool(&mut self, b: bool) -> Gc<Expr> {
+        Gc::new(Expr::Symbol(self.intern_symbol(if b {
+            "true"
+        } else {
+            "false"
+        })))
     }
-}
 
-impl Namespace {
-    pub fn new() -> Self {
-        Self {
-            mappings: NonEmpty::new(HashMap::new()),
+    /// Make an error, a cons list `'(! "msg")` or `'(! "msg" userdata)`.
+    pub fn make_err(&mut self, msg: String, userdata: Option<Gc<Expr>>) -> Gc<Expr> {
+        let oh_no = self.intern_symbol("!");
+        if let Some(userdata) = userdata {
+            self.list_to_sexp(&[
+                Gc::new(Expr::Symbol(oh_no)),
+                Gc::new(Expr::String(msg)),
+                userdata,
+            ])
+        } else {
+            self.list_to_sexp(&[Gc::new(Expr::Symbol(oh_no)), Gc::new(Expr::String(msg))])
         }
     }
 
-    pub fn add(&mut self, symbol: u64, target: Index) {
-        self.mappings.last_mut().insert(symbol, target);
+    /// Get a reference to the engine's thtdlib.
+    pub fn thtdlib(&self) -> Gc<GcCell<Namespace>> {
+        self.thtdlib.clone()
+    }
+}
+
+/// Mapping of symbols to places in memory.
+#[derive(Debug, Clone, Trace, Finalize)]
+pub struct Namespace {
+    mappings: HashMap<u64, Gc<Expr>>,
+    parent: Option<Gc<GcCell<Namespace>>>,
+}
+
+impl Namespace {
+    pub fn new(parent: Gc<GcCell<Namespace>>) -> Self {
+        Self {
+            mappings: HashMap::new(),
+            parent: Some(parent),
+        }
     }
 
-    pub fn push(&mut self) {
-        self.mappings.push(HashMap::new())
+    pub fn insert(&mut self, symbol: u64, target: Gc<Expr>) {
+        self.mappings.insert(symbol, target);
     }
 
-    pub fn pop(&mut self) -> Option<HashMap<u64, Index>> {
-        self.mappings.pop()
+    pub fn lookup(&self, symbol: u64) -> Option<Gc<Expr>> {
+        self.mappings.get(&symbol).cloned().or_else(|| {
+            self.parent
+                .as_ref()
+                .and_then(|parent| parent.borrow().lookup(symbol))
+        })
     }
 }

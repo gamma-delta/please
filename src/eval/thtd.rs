@@ -1,116 +1,136 @@
 //! Ruth's thtandard library.
 
+mod env;
+mod funcs;
+mod math;
+mod pairs_lists;
+mod quoting;
+mod strings;
+use env::*;
+use funcs::*;
+use math::*;
+use pairs_lists::*;
+use quoting::*;
+use strings::*;
+
 use std::io::Write;
 
-use generational_arena::Index;
+use gc::{Gc, GcCell};
 
 use crate::{Engine, Expr, Namespace};
 
 pub fn add_thtandard_library(engine: &mut Engine) {
-    for (name, func) in [
-        // comment to force newline
-        ("+", add as _),
+    let thtdlib = engine.thtdlib();
+    let mut thtdlib = thtdlib.borrow_mut();
+
+    for (name, special_form) in [
+        ("quote", quote as _),
         ("define", define as _),
-        ("string", to_string as _),
-        ("prn", prn as _),
+        ("lambda", lambda_unvariadic as _),
+        ("lambda*", lambda_variadic as _),
     ] {
         let symbol = engine.intern_symbol(name);
-        let handle = engine.insert(Expr::NativeFunction { func, name: symbol });
-        engine.thtdlib.insert(symbol, handle);
+        let handle = Gc::new(Expr::SpecialForm {
+            func: special_form,
+            name: symbol,
+        });
+        thtdlib.insert(symbol, handle);
     }
 
+    for (name, native_func) in [
+        // math
+        ("+", add as _),
+        ("-", sub as _),
+        ("*", mul as _),
+        ("//", div_floor as _),
+        ("and", and as _),
+        ("or", or as _),
+        ("not", not as _),
+        ("xor", xor as _),
+        // string
+        ("string", to_string as _),
+        ("prn", prn as _),
+        // list/pair
+        ("cons", cons as _),
+        ("car", car as _),
+        ("cdr", cdr as _),
+    ] {
+        let symbol = engine.intern_symbol(name);
+        let handle = Gc::new(Expr::NativeProcedure {
+            func: native_func,
+            name: symbol,
+        });
+        thtdlib.insert(symbol, handle);
+    }
+
+    // Atomic constants that mean nothing other than themselves
     for atom in ["false", "true", "!"] {
         let symbol = engine.intern_symbol(atom);
-        let handle = engine.insert(Expr::Symbol(symbol));
-        // Have the symbol point to itself so true = true = true.
+        // Have the symbol point to itself so it evals to itself
         // it acts like a literal
-        engine.thtdlib.insert(symbol, handle);
+        thtdlib.insert(symbol, Gc::new(Expr::Symbol(symbol)));
     }
 
-    for (name, ps) in [("ps1", ">>> "), ("ps2", "... ")] {
+    for (name, thing) in [
+        ("ps1", Expr::String(">>> ".to_string())),
+        ("ps2", Expr::String("... ".to_string())),
+        ("null", Expr::Nil),
+    ] {
         let symbol = engine.intern_symbol(name);
-        let handle = engine.insert(Expr::String(ps.to_owned()));
-        engine.thtdlib.insert(symbol, handle);
+        let handle = Gc::new(thing);
+        thtdlib.insert(symbol, handle);
     }
-
-    let null = engine.intern_symbol("null");
-    let null_h = engine.insert(Expr::Nil);
-    engine.thtdlib.insert(null, null_h);
 }
 
-fn add(engine: &mut Engine, env: &mut Namespace, args: &[Index]) -> Expr {
-    let evaled = args
-        .iter()
-        .map(|arg| engine.eval(env, *arg))
-        .collect::<Vec<_>>();
-    let res: Option<i64> = evaled
-        .iter()
-        .map(|arg| {
-            let expr = engine.get(*arg);
-            if let Expr::Integer(int) = expr {
-                Some(*int)
-            } else {
-                None
-            }
-        })
-        .sum();
-    if let Some(int) = res {
-        Expr::Integer(int)
+// "Contract" functions
+
+fn check_argc(
+    engine: &mut Engine,
+    args: &[Gc<Expr>],
+    min: usize,
+    max: usize,
+) -> Result<(), Gc<Expr>> {
+    if !(min..=max).contains(&args.len()) {
+        let msg = if min == max {
+            format!("expected exactly {} args but got {}", min, args.len())
+        } else {
+            format!(
+                "expected between {} and {} args but got {}",
+                min,
+                max,
+                args.len()
+            )
+        };
+        let data = engine.list_to_sexp(&[
+            Gc::new(Expr::Integer(min as _)),
+            Gc::new(Expr::Integer(max as _)),
+            Gc::new(Expr::Integer(args.len() as _)),
+        ]);
+        Err(engine.make_err(msg, Some(data)))
     } else {
-        Expr::Symbol(engine.intern_symbol("!"))
+        Ok(())
     }
 }
 
-fn define(engine: &mut Engine, env: &mut Namespace, args: &[Index]) -> Expr {
-    if args.len() != 2 {
-        return Expr::Symbol(engine.intern_symbol("!"));
-    }
-
-    let name = match engine.get(args[0]) {
-        Expr::Symbol(id) => *id,
-        _ => return Expr::Symbol(engine.intern_symbol("!")),
-    };
-    let rhs = engine.eval(env, args[1]);
-
-    env.add(name, rhs);
-
-    Expr::Nil
-}
-
-fn to_string(engine: &mut Engine, env: &mut Namespace, args: &[Index]) -> Expr {
-    if args.len() != 1 {
-        return Expr::Symbol(engine.intern_symbol("!"));
-    }
-    let evaled = engine.eval(env, args[0]);
-    let string = engine.print_expr(evaled);
-    Expr::String(string)
-}
-
-fn prn(engine: &mut Engine, env: &mut Namespace, args: &[Index]) -> Expr {
-    if !(1..=2).contains(&args.len()) {
-        return Expr::Symbol(engine.intern_symbol("!"));
-    }
-
-    let newline = if args.len() == 2 {
-        let check = engine.eval(env, args[1]);
-        engine.is_truthy(check)
+fn check_min_argc(engine: &mut Engine, args: &[Gc<Expr>], min: usize) -> Result<(), Gc<Expr>> {
+    if min > args.len() {
+        let msg = format!("expected {} args or more but got {}", min, args.len());
+        let data = engine.list_to_sexp(&[
+            Gc::new(Expr::Integer(min as _)),
+            Gc::new(Expr::Integer(args.len() as _)),
+        ]);
+        Err(engine.make_err(msg, Some(data)))
     } else {
-        true
-    };
-
-    let to_print = engine.eval(env, args[0]);
-    let out = match engine.get(to_print) {
-        // show exactly as it is
-        Expr::String(it) => it.clone(),
-        _ => engine.print_expr(to_print),
-    };
-
-    if newline {
-        println!("{}", out);
-    } else {
-        print!("{}", out);
-        std::io::stdout().flush().unwrap();
+        Ok(())
     }
+}
 
-    Expr::Nil
+fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) -> Gc<Expr> {
+    let msg = format!("in argument #{}, expected {}", idx, want);
+    let data = engine.list_to_sexp(&[
+        Gc::new(Expr::Integer(idx as _)),
+        Gc::new(Expr::String(want.to_string())),
+        arg,
+    ]);
+    engine.make_err(msg, Some(data))
 }
