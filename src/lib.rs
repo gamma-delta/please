@@ -37,7 +37,7 @@ pub enum Expr {
     SpecialForm {
         #[derivative(Debug(format_with = "Expr::form_formatter"))]
         #[unsafe_ignore_trace]
-        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
+        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Result<Gc<Expr>, eval::TailRec>,
         name: u64,
     },
     /// Named native function and the symbol of its name.
@@ -59,7 +59,7 @@ pub enum Expr {
 impl Expr {
     #[allow(clippy::type_complexity)]
     fn form_formatter(
-        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
+        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Result<Gc<Expr>, eval::TailRec>,
         f: &mut std::fmt::Formatter,
     ) -> Result<(), std::fmt::Error> {
         write!(f, "fn(...)")

@@ -4,10 +4,24 @@ mod thtd;
 use gc::{Gc, GcCell};
 pub use thtd::add_thtandard_library;
 
+pub struct TailRec(Gc<Expr>, Gc<GcCell<Namespace>>);
+
 impl Engine {
     /// Evaluate the expression at the given location on the heap,
     /// put the result on the heap, and return it.
-    pub fn eval(&mut self, env: Gc<GcCell<Namespace>>, expr: Gc<Expr>) -> Gc<Expr> {
+    pub fn eval(&mut self, mut env: Gc<GcCell<Namespace>>, mut expr: Gc<Expr>) -> Gc<Expr> {
+        loop {
+            match self.eval_rec(env, expr) {
+                Ok(val) => break val,
+                Err(TailRec(next, nenv)) => {
+                    expr = next;
+                    env = nenv;
+                },
+            };
+        }
+    }
+    /// Helper function that either returns Err(next expr) or Ok(final result)
+    fn eval_rec(&mut self, env: Gc<GcCell<Namespace>>, expr: Gc<Expr>) -> Result<Gc<Expr>, TailRec> {
         match &*expr {
             // Passthru literals unchanged
             Expr::Integer(_)
@@ -15,11 +29,11 @@ impl Engine {
             | Expr::String(_)
             | Expr::SpecialForm { .. }
             | Expr::NativeProcedure { .. }
-            | Expr::Procedure { .. } => expr,
+            | Expr::Procedure { .. } => Ok(expr),
             // Lookup the symbol
             &Expr::Symbol(id) => {
                 let idx = env.borrow().lookup(id);
-                match idx {
+                let res = match idx {
                     Some(it) => it,
                     None => self.make_err(
                         format!(
@@ -28,42 +42,32 @@ impl Engine {
                         ),
                         Some(expr),
                     ),
-                }
+                };
+                Ok(res)
             }
             Expr::Pair(car, cdr) => {
                 let car = self.eval(env.clone(), car.clone());
 
+                let args = match self.sexp_to_list(cdr.clone()) {
+                    Some(it) => it,
+                    None => {
+                        return Ok(self.make_err(
+                            "application: cdr must be a proper list".to_string(),
+                            Some(cdr.clone()),
+                        ))
+                    }
+                };
                 match &*car {
                     &Expr::SpecialForm { func, .. } => {
-                        let children = match self.sexp_to_list(cdr.clone()) {
-                            Some(it) => it,
-                            None => {
-                                return self.make_err(
-                                    "application: cdr must be a proper list".to_string(),
-                                    Some(cdr.clone()),
-                                )
-                            }
-                        };
-                        func(self, env, &children)
+                        func(self, env, &args)
                     }
                     &Expr::NativeProcedure { func, .. } => {
-                        let args = match self.sexp_to_list(cdr.clone()) {
-                            Some(it) => it,
-
-                            None => {
-                                return self.make_err(
-                                    "application: cdr must be a proper list".to_string(),
-                                    Some(cdr.clone()),
-                                )
-                            }
-                        };
-
                         let evaled_args = args
                             .into_iter()
                             .map(|expr| self.eval(env.clone(), expr))
                             .collect::<Vec<_>>();
 
-                        func(self, &evaled_args)
+                        Ok(func(self, &evaled_args))
                     }
                     Expr::Procedure {
                         args: arg_names,
@@ -74,17 +78,8 @@ impl Engine {
                         // Fill the arg slots via a new namespace
                         let mut arg_env = Namespace::new(closed_env.clone());
 
-                        let args_passed = match self.sexp_to_list(cdr.clone()) {
-                            Some(it) => it,
-                            None => {
-                                return self.make_err(
-                                    "application: cdr must be a proper list".to_string(),
-                                    Some(cdr.clone()),
-                                )
-                            }
-                        };
                         // Eval the args in the parent context
-                        let args_passed_evaled = args_passed
+                        let args_passed_evaled = args
                             .into_iter()
                             .map(|arg| self.eval(env.clone(), arg))
                             .collect::<Vec<_>>();
@@ -114,24 +109,22 @@ impl Engine {
                                     Gc::new(Expr::Symbol(truth)),
                                     Gc::new(Expr::Integer(idx as _)),
                                 ]);
-                                return self.make_err(message, Some(data));
+                                return Ok(self.make_err(message, Some(data)));
                             }
                         }
 
                         let arg_env = Gc::new(GcCell::new(arg_env));
 
-                        let result = body
+                        let (body, tail) = match &body[..] {
+                            [body @ .., tail] => (body, tail),
+                            [] => unreachable!(),
+                        };
+                        body
                             .iter()
-                            .map(|expr| self.eval(arg_env.clone(), expr.clone()))
-                            .last();
-                        result.unwrap_or_else(|| {
-                            self.make_err(
-                                "application: had a procedure with no body sexprs".to_string(),
-                                None,
-                            )
-                        })
+                            .map(|expr| self.eval(arg_env.clone(), expr.clone()));
+                        Err(TailRec(tail.clone(), arg_env))
                     }
-                    _ => self.make_err("application: not a procedure".to_string(), Some(car)),
+                    _ => Ok(self.make_err("application: not a procedure".to_string(), Some(car))),
                 }
             }
         }
