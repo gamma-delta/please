@@ -74,6 +74,13 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         // equality
         ("obj-equal?", id_equal as _),
         ("equal?", equal as _),
+        ("pair?", is_pair as _),
+        ("number?", is_number as _),
+        ("exact?", is_exact as _),
+        ("inexact?", is_inexact as _),
+        ("nil?", is_nil as _),
+        ("string?", is_string as _),
+        ("symbol?", is_symbol as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {

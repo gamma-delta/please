@@ -52,3 +52,28 @@ fn check_equal(engine: &mut Engine, lhs: Gc<Expr>, rhs: Gc<Expr>) -> bool {
         _ => false,
     }
 }
+
+macro_rules! predicates {
+    (($name:ident $pat:pat)) => {
+        pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
+            if let Err(ono) = check_argc(engine, args, 1, 1) {
+                return ono;
+            };
+            engine.make_bool(matches!(&*args[0], $pat))
+        }
+    };
+    ($head:tt $($tail:tt)+) => {
+        predicates! { $head }
+        predicates! { $($tail)* }
+    };
+}
+
+predicates! {
+    (is_pair Expr::Pair(..))
+    (is_number (Expr::Integer(_) | Expr::Float(_)))
+    (is_exact Expr::Integer(..))
+    (is_inexact Expr::Float(..))
+    (is_nil Expr::Nil)
+    (is_string Expr::String(_))
+    (is_symbol Expr::Symbol(_))
+}
