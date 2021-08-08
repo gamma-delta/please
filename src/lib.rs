@@ -17,6 +17,8 @@ extern crate derivative;
 use bimap::BiHashMap;
 use gc::{Finalize, Gc, GcCell, Trace};
 
+type Symbol = u64;
+
 #[derive(Derivative, Trace, Finalize)]
 #[derivative(Debug)]
 pub enum Expr {
@@ -27,7 +29,7 @@ pub enum Expr {
     ///
     /// This number is the ID of this symbol and is used for quick equality
     /// and looking up the original string.
-    Symbol(u64),
+    Symbol(Symbol),
     /// Pointer to two elements.
     Pair(Gc<Expr>, Gc<Expr>),
     /// Lack of a value
@@ -38,18 +40,18 @@ pub enum Expr {
         #[derivative(Debug(format_with = "Expr::form_formatter"))]
         #[unsafe_ignore_trace]
         func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> TailRec,
-        name: u64,
+        name: Symbol,
     },
     /// Named native function and the symbol of its name.
     NativeProcedure {
         #[derivative(Debug(format_with = "Expr::func_formatter"))]
         #[unsafe_ignore_trace]
         func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
-        name: u64,
+        name: Symbol,
     },
 
     Procedure {
-        args: Vec<u64>,
+        args: Vec<Symbol>,
         body: Vec<Gc<Expr>>,
         env: Gc<GcCell<Namespace>>,
         variadic: bool,
@@ -77,7 +79,7 @@ impl Expr {
 #[derive(Debug, Clone)]
 pub struct Engine {
     /// Map of all known interned symbols to their handles, and vice versa
-    interned_symbols: BiHashMap<String, u64>,
+    interned_symbols: BiHashMap<String, Symbol>,
     /// Number of symbols that have ever been created
     akashic_symbol_count: u64,
 
@@ -295,7 +297,7 @@ impl Engine {
     }
 
     /// Make or get the symbol handle of the symbol represented by the given string.
-    pub fn intern_symbol(&mut self, sym: &str) -> u64 {
+    pub fn intern_symbol(&mut self, sym: &str) -> Symbol {
         if let Some(already) = self.interned_symbols.get_by_left(sym) {
             *already
         } else {
@@ -308,11 +310,11 @@ impl Engine {
     }
 
     /// Get the ID of the already-existing symbol with the given name.
-    pub fn find_symbol(&self, sym: &str) -> Option<u64> {
+    pub fn find_symbol(&self, sym: &str) -> Option<Symbol> {
         self.interned_symbols.get_by_left(sym).copied()
     }
 
-    pub fn get_symbol_str(&self, symbol_id: u64) -> Option<&str> {
+    pub fn get_symbol_str(&self, symbol_id: Symbol) -> Option<&str> {
         if let Some(sym) = self.interned_symbols.get_by_right(&symbol_id) {
             Some(sym.as_str())
         } else {
@@ -409,7 +411,7 @@ impl Engine {
 /// Mapping of symbols to places in memory.
 #[derive(Debug, Clone, Trace, Finalize)]
 pub struct Namespace {
-    mappings: HashMap<u64, Gc<Expr>>,
+    mappings: HashMap<Symbol, Gc<Expr>>,
     parent: Option<Gc<GcCell<Namespace>>>,
 }
 
@@ -421,11 +423,11 @@ impl Namespace {
         }
     }
 
-    pub fn insert(&mut self, symbol: u64, target: Gc<Expr>) {
+    pub fn insert(&mut self, symbol: Symbol, target: Gc<Expr>) {
         self.mappings.insert(symbol, target);
     }
 
-    pub fn lookup(&self, symbol: u64) -> Option<Gc<Expr>> {
+    pub fn lookup(&self, symbol: Symbol) -> Option<Gc<Expr>> {
         self.mappings.get(&symbol).cloned().or_else(|| {
             self.parent
                 .as_ref()

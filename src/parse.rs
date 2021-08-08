@@ -4,7 +4,7 @@ use ariadne::{CharSet, Label, Report, ReportKind};
 use gc::Gc;
 use thiserror::Error;
 
-use crate::{Engine, Expr};
+use crate::{Engine, Expr, Symbol};
 
 /// Error when lexing or parsing an expression
 #[derive(Error)]
@@ -413,7 +413,7 @@ fn try_read_int<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a, i6
     }
 }
 
-fn try_read_symbol<'a>(s: &'a str, state: &mut Engine) -> Option<ReadResult<'a, u64>> {
+fn try_read_symbol<'a>(s: &'a str, state: &mut Engine) -> Option<ReadResult<'a, Symbol>> {
     let (s, rest) = read_until_delim(s);
 
     if is_valid_symbol(s) {
