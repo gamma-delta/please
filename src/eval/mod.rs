@@ -82,7 +82,9 @@ impl Engine {
                         variadic,
                     } => {
                         // Fill the arg slots via a new namespace
-                        let mut arg_env = Namespace::new(closed_env.as_ref().map(Clone::clone).unwrap_or_else(|| env.clone()));
+                        let mut arg_env = Namespace::new(
+                            closed_env.as_ref().cloned().unwrap_or_else(|| env.clone()),
+                        );
 
                         // Eval the args in the parent context
                         let args_passed = if closed_env.is_some() {
@@ -134,7 +136,7 @@ impl Engine {
                         }
 
                         let arg_env = Gc::new(GcCell::new(arg_env));
-                        let body_env = if *is_lambda {
+                        let body_env = if closed_env.is_some() {
                             // lambdas are called closing over their environment
                             arg_env.clone()
                         } else {
