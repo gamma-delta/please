@@ -28,10 +28,14 @@
 
 (define (find needle haystack) 
   (let searcher ([n 0] [haystack haystack])
+<<<<<<< HEAD
+=======
+    (prn n)
+>>>>>>> Fix find, monkey-patch apply (TODO: fix properly)
     (prn haystack)
     (cond
       [(not haystack) false]
-      [(equals? needle (car haystack)) n]
+      [(equal? needle (car haystack)) n]
       [true (searcher (add1 n) (cdr haystack))])))
 
 ;; Returns (head, tail) around the element requested,

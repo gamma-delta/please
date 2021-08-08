@@ -116,7 +116,10 @@ pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
         fnargs.extend(trail);
     }
 
-    let fnargs = engine.list_to_sexp(&fnargs);
-    let full_call = Expr::Pair(args[0].to_owned(), fnargs);
+    let quote = Gc::new(Expr::Symbol(engine.intern_symbol("quote")));
+    let quote = |e| engine.list_to_sexp(&[quote.clone(), e]);
+    let fnargs = fnargs.into_iter().map(quote).collect::<Vec<_>>();
+    let fnargs = engine.list_to_sexp(&fnargs[..]);
+    let full_call = Expr::Pair(quote(args[0].to_owned()), fnargs);
     engine.eval(env, Gc::new(full_call))
 }
