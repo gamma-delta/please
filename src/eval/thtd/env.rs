@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::eval::TailRec;
+use crate::Expr;
 
 pub fn define(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
     if let Err(e) = check_min_argc(engine, args, 2) {
@@ -68,41 +69,21 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) 
     };
 
     for binding in arg_bindings {
-        let bind = match engine.sexp_to_list(binding) {
-            Some(it) => it,
-            None => {
-                return TailRec::Exit(bad_arg_type(
-                    engine,
-                    args[0].to_owned(),
-                    0,
-                    "list of (symbol expr)",
-                ))
+        if let Some(pair) = engine.sexp_to_list(binding) {
+            if let [name, expr] = pair.as_slice() {
+                if let Expr::Symbol(id) = **name {
+                    let evaled = engine.eval(inner_env.clone(), expr.to_owned());
+                    inner_env.borrow_mut().insert(id, evaled);
+                    continue;
+                }
             }
-        };
-
-        if bind.len() != 2 {
-            return TailRec::Exit(bad_arg_type(
-                engine,
-                args[0].to_owned(),
-                0,
-                "list of (symbol expr)",
-            ));
         }
-
-        let name = match &*bind[0] {
-            Expr::Symbol(it) => it,
-            _ => {
-                return TailRec::Exit(bad_arg_type(
-                    engine,
-                    args[0].to_owned(),
-                    0,
-                    "list of (symbol expr)",
-                ))
-            }
-        };
-
-        let evaled = engine.eval(inner_env.clone(), bind[1].to_owned());
-        inner_env.borrow_mut().insert(*name, evaled);
+        return TailRec::Exit(bad_arg_type(
+            engine,
+            args[0].to_owned(),
+            0,
+            "list of (symbol expr)",
+        ))
     }
 
     // Now eval the bodies
