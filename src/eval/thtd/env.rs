@@ -43,18 +43,26 @@ pub fn define(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]
     }
 }
 
-pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr>]) -> TailRec {
     /*
     (let (
         [key val]
         [key2 val2]) body body body)
     */
 
+    let inner_env = Gc::new(GcCell::new(Namespace::new(env.clone())));
+
+    let symbol = match args.get(0).map(|s| &**s) {
+        Some(Expr::Symbol(s)) => {
+            args = &args[1..];
+            Some(*s)
+        },
+        _ => None,
+    };
+
     if let Err(ono) = check_min_argc(engine, args, 2) {
         return TailRec::Exit(ono);
     }
-
-    let inner_env = Gc::new(GcCell::new(Namespace::new(env)));
 
     let arg_bindings = match engine.sexp_to_list(args[0].to_owned()) {
         Some(it) => it,
@@ -68,12 +76,16 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) 
         }
     };
 
+    let mut names = vec![];
+    let mut evaluated = vec![];
     for binding in arg_bindings {
         if let Some(pair) = engine.sexp_to_list(binding) {
             if let [name, expr] = pair.as_slice() {
                 if let Expr::Symbol(id) = **name {
                     let evaled = engine.eval(inner_env.clone(), expr.to_owned());
-                    inner_env.borrow_mut().insert(id, evaled);
+                    inner_env.borrow_mut().insert(id, evaled.clone());
+                    names.push(id);
+                    evaluated.push(evaled);
                     continue;
                 }
             }
@@ -88,8 +100,23 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) 
 
     // Now eval the bodies
     // skip the last for tail positioning
-    for body in &args[1..args.len() - 1] {
-        engine.eval(inner_env.clone(), body.to_owned());
+    match symbol {
+        Some(s) => {
+            let scope = Gc::new(GcCell::new(Namespace::new(env)));
+            let lambda = Gc::new(Expr::Procedure {
+                args: names,
+                body: args[1..].to_vec(),
+                env: scope.clone(),
+                variadic: false
+            });
+            scope.borrow_mut().insert(s, lambda.clone());
+            TailRec::Exit(apply(engine, scope, &[lambda, engine.list_to_sexp(&evaluated)]))
+        },
+        None => {
+            for body in &args[1..args.len() - 1] {
+                engine.eval(inner_env.clone(), body.to_owned());
+            }
+            TailRec::TailRecur(args.last().unwrap().to_owned(), inner_env)
+        }
     }
-    TailRec::TailRecur(args.last().unwrap().to_owned(), inner_env)
 }
