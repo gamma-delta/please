@@ -56,7 +56,7 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
         Some(Expr::Symbol(s)) => {
             args = &args[1..];
             Some(*s)
-        },
+        }
         _ => None,
     };
 
@@ -95,7 +95,7 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
             args[0].to_owned(),
             0,
             "list of (symbol expr)",
-        ))
+        ));
     }
 
     // Now eval the bodies
@@ -107,11 +107,16 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
                 args: names,
                 body: args[1..].to_vec(),
                 env: scope.clone(),
-                variadic: false
+                variadic: false,
+                is_lambda: true,
             });
             scope.borrow_mut().insert(s, lambda.clone());
-            TailRec::Exit(apply(engine, scope, &[lambda, engine.list_to_sexp(&evaluated)]))
-        },
+            TailRec::Exit(apply(
+                engine,
+                scope,
+                &[lambda, engine.list_to_sexp(&evaluated)],
+            ))
+        }
         None => {
             for body in &args[1..args.len() - 1] {
                 engine.eval(inner_env.clone(), body.to_owned());

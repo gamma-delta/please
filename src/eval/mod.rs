@@ -79,22 +79,29 @@ impl Engine {
                         body,
                         env: closed_env,
                         variadic,
+                        is_lambda,
                     } => {
                         // Fill the arg slots via a new namespace
                         let mut arg_env = Namespace::new(closed_env.clone());
 
                         // Eval the args in the parent context
-                        let args_passed_evaled = args
-                            .into_iter()
-                            .map(|arg| self.eval(env.clone(), arg))
-                            .collect::<Vec<_>>();
+                        let args_passed = if *is_lambda {
+                            args
+                                // eval args for a function call
+                                .into_iter()
+                                .map(|arg| self.eval(env.clone(), arg))
+                                .collect::<Vec<_>>()
+                        } else {
+                            // let them be for a macro
+                            args
+                        };
 
                         for (idx, &symbol) in arg_names.iter().enumerate() {
                             if *variadic && idx == arg_names.len() - 1 {
                                 // This is the trail arg
-                                let trail = self.list_to_sexp(&args_passed_evaled[idx..]);
+                                let trail = self.list_to_sexp(&args_passed[idx..]);
                                 arg_env.insert(symbol, trail);
-                            } else if let Some(arg) = args_passed_evaled.get(idx) {
+                            } else if let Some(arg) = args_passed.get(idx) {
                                 arg_env.insert(symbol, arg.clone());
                             } else {
                                 // Uh oh we ran out of args in the call

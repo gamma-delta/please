@@ -33,8 +33,11 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("unquote", unquote as _),
         ("define", define as _),
         ("lambda", lambda as _),
+        ("macro", macro_ as _),
         ("if", if_ as _),
         ("let", let_ as _),
+        ("and", and as _),
+        ("or", or as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {
@@ -45,6 +48,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
     }
 
     for (name, native_func) in [
+        // quoting
+        ("eval", eval as _),
         // functions
         ("apply", apply as _),
         // math
@@ -57,8 +62,6 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("<=", le as _),
         (">=", ge as _),
         ("=", num_eq as _),
-        ("and", and as _),
-        ("or", or as _),
         ("not", not as _),
         ("xor", xor as _),
         // string

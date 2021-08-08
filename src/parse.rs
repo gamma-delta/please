@@ -22,7 +22,7 @@ impl ExprParseError {
             .with_config(ariadne::Config::default().with_char_set(CharSet::Ascii))
             .with_message(err.data.to_string());
 
-        let all = (source.clone(), start..end);
+        let all = (source, start..end);
 
         match &err.data {
             ExprParseErrorInfo::ParseInt {
@@ -31,7 +31,7 @@ impl ExprParseError {
                 source,
             } => {
                 report = report
-                    .with_label(Label::new(all.clone()).with_message(source.to_string()))
+                    .with_label(Label::new(all).with_message(source.to_string()))
                     .with_note(if let Some(prefix) = radix_prefix {
                         format!("the prefix {} indicates a base-{} literal", prefix, radix)
                     } else {
@@ -40,17 +40,17 @@ impl ExprParseError {
             }
             &ExprParseErrorInfo::BadIntRadix(radix) => {
                 report = report
-                    .with_label(Label::new(all.clone()).with_message(format!("this {:?} is not valid", radix)))
+                    .with_label(Label::new(all).with_message(format!("this {:?} is not valid", radix)))
                     .with_note("the valid indicators are 'x' for base-16, 'o' for base-8, and 'b' for base-2");
             }
             ExprParseErrorInfo::IndeterminableToken => {
                 report = report
-                    .with_label(Label::new(all.clone()).with_message("this is unintelligible"))
+                    .with_label(Label::new(all).with_message("this is unintelligible"))
                     .with_note(format!("the problem is {:?}", err.offender));
             }
             ExprParseErrorInfo::ExpectedCloseParen { opener, closer } => {
                 report = report
-                    .with_label(Label::new(all.clone()).with_message(format!(
+                    .with_label(Label::new(all).with_message(format!(
                         "this {:?} expects a {:?} to close it, but there wasn't one",
                         opener, closer
                     )))
@@ -67,7 +67,7 @@ impl ExprParseError {
                         opener, expected_closer
                     )))
                     .with_label(
-                        Label::new(all.clone())
+                        Label::new(all)
                             .with_message(format!("but there was a {:?} instead", got_closer)),
                     )
                     .with_note(format!(
@@ -77,30 +77,29 @@ impl ExprParseError {
             }
             ExprParseErrorInfo::WrongDotTrailCount => {
                 report = report.with_label(
-                    Label::new(all.clone())
+                    Label::new(all)
                         .with_message("exactly one expr is required after a dot to make a pair"),
                 )
             }
             ExprParseErrorInfo::ExpectedCloseQuote => {
-                report =
-                    report
-                        .with_label(Label::new(all.clone()).with_message(
+                report = report
+                    .with_label(
+                        Label::new(all.clone()).with_message(
                             "this double-quote expects a double-quote to close it...",
-                        ))
-                        .with_label(
-                            Label::new(all.clone())
-                                .with_message("but none was found here (or it was escaped)"),
-                        )
-                        .with_note("try putting a '\"' at the end");
+                        ),
+                    )
+                    .with_label(
+                        Label::new(all).with_message("but none was found here (or it was escaped)"),
+                    )
+                    .with_note("try putting a '\"' at the end");
             }
             ExprParseErrorInfo::InvalidEscape(pos, problem) => {
-                report =
-                    report.with_label(Label::new(all.clone()).with_message(problem.to_string()));
+                report = report.with_label(Label::new(all).with_message(problem.to_string()));
             }
             ExprParseErrorInfo::InvalidRemainder => {
                 report = report
                     .with_label(
-                        Label::new(all.clone())
+                        Label::new(all)
                             .with_message("this was left over after reading a well-formed expr"),
                     )
                     .with_note(
@@ -112,16 +111,14 @@ impl ExprParseError {
                     .with_label(Label::new(all.clone()).with_message(
                         "this block comment start expects a double-quote to close it...",
                     ))
-                    .with_label(Label::new(all.clone()).with_message("but none was found here"))
+                    .with_label(Label::new(all).with_message("but none was found here"))
                     .with_note("try putting a \"*;\" at the end");
             }
             ExprParseErrorInfo::QuoteNothing => {
-                report =
-                    report.with_label(Label::new(all.clone()).with_message("you can't quote that"))
+                report = report.with_label(Label::new(all).with_message("you can't quote that"))
             }
             ExprParseErrorInfo::Eof => {
-                report =
-                    report.with_label(Label::new(all.clone()).with_message("found nothing here"))
+                report = report.with_label(Label::new(all).with_message("found nothing here"))
             }
         }
 

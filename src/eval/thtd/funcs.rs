@@ -4,6 +4,18 @@ use super::*;
 use crate::eval::TailRec;
 
 pub fn lambda(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+    lambda_macro_inner(engine, env, args, true)
+}
+pub fn macro_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+    lambda_macro_inner(engine, env, args, false)
+}
+
+fn lambda_macro_inner(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+    is_lambda: bool,
+) -> TailRec {
     /*
         (lambda
             (args list)
@@ -45,6 +57,7 @@ pub fn lambda(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]
         body,
         env, // close over the calling context
         variadic: vararg_name.is_some(),
+        is_lambda,
     };
     TailRec::Exit(Gc::new(proc))
 }

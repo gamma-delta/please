@@ -145,14 +145,44 @@ pub fn div(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
     quotient.to_expr()
 }
 
-pub fn and(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-    let res = args.iter().all(|expr| engine.is_truthy(expr.to_owned()));
-    engine.make_bool(res)
+pub fn and(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+    if let Some(last) = args.last() {
+        let failer = args.iter().take(args.len() - 1).find_map(|expr| {
+            let evaled = engine.eval(env.clone(), expr.to_owned());
+            if !engine.is_truthy(evaled.to_owned()) {
+                // found our falsy, shortcut out
+                Some(evaled)
+            } else {
+                None
+            }
+        });
+        match failer {
+            Some(it) => TailRec::Exit(it),
+            None => TailRec::TailRecur(last.to_owned(), env),
+        }
+    } else {
+        TailRec::Exit(engine.make_bool(true))
+    }
 }
 
-pub fn or(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-    let res = args.iter().any(|expr| engine.is_truthy(expr.to_owned()));
-    engine.make_bool(res)
+pub fn or(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+    if let Some(last) = args.last() {
+        let failer = args.iter().take(args.len() - 1).find_map(|expr| {
+            let evaled = engine.eval(env.clone(), expr.to_owned());
+            if engine.is_truthy(evaled.to_owned()) {
+                // found our truthy, shortcut out
+                Some(evaled)
+            } else {
+                None
+            }
+        });
+        match failer {
+            Some(it) => TailRec::Exit(it),
+            None => TailRec::TailRecur(last.to_owned(), env),
+        }
+    } else {
+        TailRec::Exit(engine.make_bool(true))
+    }
 }
 
 pub fn not(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {

@@ -53,3 +53,14 @@ pub fn unquote(engine: &mut Engine, _env: Gc<GcCell<Namespace>>, _args: &[Gc<Exp
         None,
     ))
 }
+
+pub fn eval(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
+    if let Err(e) = check_min_argc(engine, args, 1) {
+        e
+    } else {
+        args.iter()
+            .map(|expr| engine.eval(env.clone(), expr.to_owned()))
+            .last()
+            .unwrap()
+    }
+}

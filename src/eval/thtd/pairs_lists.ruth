@@ -9,3 +9,19 @@
         (if tail
             (cons head (append tail x))
             (cons head x))))
+
+(define (list-nth l n)
+    (if (<= n 0)
+        (car l)
+        (list-nth (cdr l) (sub1 n))))
+
+(define (first l)   (car l))
+(define (second l)  (list-nth l 1))
+(define (third l)   (list-nth l 2))
+(define (fourth l)  (list-nth l 3))
+(define (fifth l)   (list-nth l 4))
+(define (sixth l)   (list-nth l 5))
+(define (seventh l) (list-nth l 6))
+(define (eighth l)  (list-nth l 7))
+(define (ninth l)   (list-nth l 8))
+(define (tenth l)   (list-nth l 9))

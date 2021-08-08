@@ -55,6 +55,7 @@ fn check_equal(engine: &mut Engine, lhs: Gc<Expr>, rhs: Gc<Expr>) -> bool {
 
 macro_rules! predicates {
     (($name:ident $pat:pat)) => {
+        #[allow(unused_parens)]
         pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
             if let Err(ono) = check_argc(engine, args, 1, 1) {
                 return ono;

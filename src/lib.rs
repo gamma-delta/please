@@ -55,6 +55,8 @@ pub enum Expr {
         body: Vec<Gc<Expr>>,
         env: Gc<GcCell<Namespace>>,
         variadic: bool,
+        /// If false this is a macro
+        is_lambda: bool,
     },
 }
 
@@ -193,22 +195,38 @@ impl Engine {
                     args,
                     body,
                     variadic,
+                    is_lambda,
                     ..
                 } => {
                     write!(w, "(")?;
-                    if *variadic {
-                        write!(w, "lambda* (")?;
-                    } else {
+                    if *is_lambda {
                         write!(w, "lambda (")?;
+                    } else {
+                        write!(w, "macro (")?;
                     }
 
-                    for (idx, &sym) in args.iter().enumerate() {
+                    if *variadic {}
+
+                    let (draw_now_args, special) = if *variadic && args.last().is_some() {
+                        (&args[..args.len() - 1], true)
+                    } else {
+                        (args.as_slice(), false)
+                    };
+
+                    for (idx, &sym) in draw_now_args.iter().enumerate() {
                         let symbol = engine.get_symbol_str(sym).unwrap_or("<unknown>");
                         write!(w, "{}", symbol)?;
-                        if idx == args.len() - 1 {
-                            write!(w, ")")?;
+                        if idx != draw_now_args.len() - 1 {
+                            write!(w, " ")?;
                         }
                     }
+                    if special {
+                        let last = engine
+                            .get_symbol_str(*args.last().unwrap())
+                            .unwrap_or("<unknown>");
+                        write!(w, ". {}", last)?;
+                    }
+                    write!(w, ")")?;
 
                     for body_expr in body {
                         write!(w, " ")?;
@@ -307,6 +325,15 @@ impl Engine {
             self.akashic_symbol_count += 1;
             id
         }
+    }
+
+    /// Create a symbol guaranteed to not have been seen before.
+    /// Even if some overly-clever person tries to make a symbol with the same
+    /// string content, it won't work, because this symbol will have an internal
+    /// ID different from it.
+    pub fn unique_symbol(&mut self) -> Symbol {
+        let sym = format!("_uniq#{}", self.akashic_symbol_count);
+        self.intern_symbol(&sym)
     }
 
     /// Get the ID of the already-existing symbol with the given name.
