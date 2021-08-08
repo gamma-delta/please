@@ -96,9 +96,8 @@ fn lambda_macro_inner(
     let proc = Expr::Procedure {
         args: args_symbols,
         body,
-        env, // close over the calling context
+        env: if is_lambda { Some(env) } else { None }, // close over the calling context
         variadic: vararg_name.is_some(),
-        is_lambda,
     };
     TailRec::Exit(Gc::new(proc))
 }

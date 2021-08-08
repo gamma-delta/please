@@ -1,0 +1,122 @@
+From 687a7bcdf53c54f4320cd7c689093eee1b0a7482 Mon Sep 17 00:00:00 2001
+From: Alwinfy <20421383+Alwinfy@users.noreply.github.com>
+Date: Sun, 8 Aug 2021 13:44:35 -0500
+Subject: [PATCH 1/2] Fix macros
+
+---
+ src/eval/mod.rs        | 8 ++++----
+ src/eval/thtd/env.rs   | 3 +--
+ src/eval/thtd/eq.rs    | 4 ++--
+ src/eval/thtd/funcs.rs | 3 +--
+ src/lib.rs             | 9 ++++-----
+ 5 files changed, 12 insertions(+), 15 deletions(-)
+
+diff --git a/src/eval/mod.rs b/src/eval/mod.rs
+index 1298cdc..b6236b9 100644
+--- a/src/eval/mod.rs
++++ b/src/eval/mod.rs
+@@ -79,13 +79,12 @@ impl Engine {
+                         body,
+                         env: closed_env,
+                         variadic,
+-                        is_lambda,
+                     } => {
+                         // Fill the arg slots via a new namespace
+-                        let mut arg_env = Namespace::new(closed_env.clone());
++                        let mut arg_env = Namespace::new(closed_env.as_ref().map(Clone::clone).unwrap_or_else(|| env.clone()));
+ 
+                         // Eval the args in the parent context
+-                        let args_passed = if *is_lambda {
++                        let args_passed = if closed_env.is_some() {
+                             args
+                                 // eval args for a function call
+                                 .into_iter()
+@@ -139,9 +138,10 @@ impl Engine {
+                         for expr in body {
+                             self.eval(arg_env.clone(), expr.clone());
+                         }
+-                        let last = if *is_lambda {
++                        let last = if closed_env.is_some() {
+                             tail.to_owned()
+                         } else {
++                            //println!("{:?}", arg_env);
+                             self.eval(arg_env.clone(), tail.clone())
+                         };
+                         TailRec::TailRecur(last, arg_env)
+diff --git a/src/eval/thtd/env.rs b/src/eval/thtd/env.rs
+index 8181f77..a8c15f6 100644
+--- a/src/eval/thtd/env.rs
++++ b/src/eval/thtd/env.rs
+@@ -119,9 +119,8 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
+             let lambda = Gc::new(Expr::Procedure {
+                 args: names,
+                 body: args[1..].to_vec(),
+-                env: scope.clone(),
++                env: Some(scope.clone()),
+                 variadic: false,
+-                is_lambda: true,
+             });
+             scope.borrow_mut().insert(s, lambda.clone());
+             TailRec::Exit(apply(
+diff --git a/src/eval/thtd/eq.rs b/src/eval/thtd/eq.rs
+index be59e0b..37a3fd8 100644
+--- a/src/eval/thtd/eq.rs
++++ b/src/eval/thtd/eq.rs
+@@ -78,6 +78,6 @@ predicates! {
+     (is_string Expr::String(_))
+     (is_symbol Expr::Symbol(_))
+     (is_callable (Expr::NativeProcedure { .. } | Expr::SpecialForm { .. } | Expr::Procedure { .. }))
+-    (is_procedure (Expr::NativeProcedure { .. } | Expr::Procedure { is_lambda: true, .. }))
+-    (is_macro (Expr::SpecialForm { .. } | Expr::Procedure { is_lambda: false, .. }))
++    (is_procedure (Expr::NativeProcedure { .. } | Expr::Procedure { env: Some(_), .. }))
++    (is_macro (Expr::SpecialForm { .. } | Expr::Procedure { env: None, .. }))
+ }
+diff --git a/src/eval/thtd/funcs.rs b/src/eval/thtd/funcs.rs
+index 3e1921d..a22146d 100644
+--- a/src/eval/thtd/funcs.rs
++++ b/src/eval/thtd/funcs.rs
+@@ -55,9 +55,8 @@ fn lambda_macro_inner(
+     let proc = Expr::Procedure {
+         args: args_symbols,
+         body,
+-        env, // close over the calling context
++        env: if is_lambda { Some(env) } else { None }, // close over the calling context
+         variadic: vararg_name.is_some(),
+-        is_lambda,
+     };
+     TailRec::Exit(Gc::new(proc))
+ }
+diff --git a/src/lib.rs b/src/lib.rs
+index 20e2199..9b596d1 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -53,10 +53,9 @@ pub enum Expr {
+     Procedure {
+         args: Vec<Symbol>,
+         body: Vec<Gc<Expr>>,
+-        env: Gc<GcCell<Namespace>>,
++        /// This is None iff the body's a macro
++        env: Option<Gc<GcCell<Namespace>>>,
+         variadic: bool,
+-        /// If false this is a macro
+-        is_lambda: bool,
+     },
+ }
+ 
+@@ -195,11 +194,11 @@ impl Engine {
+                     args,
+                     body,
+                     variadic,
+-                    is_lambda,
++                    env,
+                     ..
+                 } => {
+                     write!(w, "(")?;
+-                    if *is_lambda {
++                    if env.is_some() {
+                         write!(w, "lambda (")?;
+                     } else {
+                         write!(w, "macro (")?;
+-- 
+2.25.1
+

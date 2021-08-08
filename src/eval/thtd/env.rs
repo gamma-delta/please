@@ -113,9 +113,8 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
             let lambda = Gc::new(Expr::Procedure {
                 args: names,
                 body: args[1..].to_vec(),
-                env: scope.clone(),
+                env: Some(scope.clone()),
                 variadic: false,
-                is_lambda: true,
             });
             scope.borrow_mut().insert(s, lambda.clone());
             TailRec::Exit(apply(

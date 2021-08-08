@@ -53,10 +53,9 @@ pub enum Expr {
     Procedure {
         args: Vec<(Symbol, Option<Gc<Expr>>)>,
         body: Vec<Gc<Expr>>,
-        env: Gc<GcCell<Namespace>>,
+        /// This is None iff the body's a macro
+        env: Option<Gc<GcCell<Namespace>>>,
         variadic: bool,
-        /// If false this is a macro
-        is_lambda: bool,
     },
 }
 
@@ -195,11 +194,11 @@ impl Engine {
                     args,
                     body,
                     variadic,
-                    is_lambda,
+                    env,
                     ..
                 } => {
                     write!(w, "(")?;
-                    if *is_lambda {
+                    if env.is_some() {
                         write!(w, "lambda (")?;
                     } else {
                         write!(w, "macro (")?;

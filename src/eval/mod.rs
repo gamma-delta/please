@@ -80,14 +80,20 @@ impl Engine {
                         body,
                         env: closed_env,
                         variadic,
-                        is_lambda,
                     } => {
                         // Fill the arg slots via a new namespace
-                        let mut arg_env = Namespace::new(closed_env.clone());
+                        let mut arg_env = Namespace::new(
+                            closed_env
+                                .as_ref()
+                                .map(Clone::clone)
+                                .unwrap_or_else(|| env.clone()),
+                        );
 
-                        let args_passed = if *is_lambda {
-                            // eval args in parent context for a function call
-                            args.into_iter()
+                        // Eval the args in the parent context
+                        let args_passed = if closed_env.is_some() {
+                            args
+                                // eval args for a function call
+                                .into_iter()
                                 .map(|arg| self.eval(env.clone(), arg))
                                 .collect::<Vec<_>>()
                         } else {
@@ -154,11 +160,13 @@ impl Engine {
                         for expr in body {
                             self.eval(body_env.clone(), expr.clone());
                         }
-                        if *is_lambda {
-                            TailRec::TailRecur(tail.to_owned(), body_env)
+                        let last = if closed_env.is_some() {
+                            tail.to_owned()
                         } else {
-                            TailRec::TailRecur(self.eval(body_env, tail.to_owned()), arg_env)
-                        }
+                            //println!("{:?}", arg_env);
+                            self.eval(arg_env.clone(), tail.clone())
+                        };
+                        TailRec::TailRecur(last, arg_env)
                     }
                     _ => TailRec::Exit(
                         self.make_err("application: not a procedure".to_string(), Some(car)),

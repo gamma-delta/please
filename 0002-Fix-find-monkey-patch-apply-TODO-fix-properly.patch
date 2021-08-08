@@ -1,0 +1,47 @@
+From b332ce865751c2ff5b7ba6aebf62bf4b2e45fa5e Mon Sep 17 00:00:00 2001
+From: Alwinfy <20421383+Alwinfy@users.noreply.github.com>
+Date: Sun, 8 Aug 2021 14:17:06 -0500
+Subject: [PATCH 2/2] Fix find, monkey-patch apply (TODO: fix properly)
+
+---
+ src/eval/thtd/funcs.rs         | 7 +++++--
+ src/eval/thtd/pairs_lists.ruth | 4 +++-
+ 2 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/src/eval/thtd/funcs.rs b/src/eval/thtd/funcs.rs
+index a22146d..a47bcbd 100644
+--- a/src/eval/thtd/funcs.rs
++++ b/src/eval/thtd/funcs.rs
+@@ -75,7 +75,10 @@ pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
+         fnargs.extend(trail);
+     }
+ 
+-    let fnargs = engine.list_to_sexp(&fnargs);
+-    let full_call = Expr::Pair(args[0].to_owned(), fnargs);
++    let quote = Gc::new(Expr::Symbol(engine.intern_symbol("quote")));
++    let quote = |e| engine.list_to_sexp(&[quote.clone(), e]);
++    let fnargs = fnargs.into_iter().map(quote).collect::<Vec<_>>();
++    let fnargs = engine.list_to_sexp(&fnargs[..]);
++    let full_call = Expr::Pair(quote(args[0].to_owned()), fnargs);
+     engine.eval(env, Gc::new(full_call))
+ }
+diff --git a/src/eval/thtd/pairs_lists.ruth b/src/eval/thtd/pairs_lists.ruth
+index 6211db5..8673c0a 100644
+--- a/src/eval/thtd/pairs_lists.ruth
++++ b/src/eval/thtd/pairs_lists.ruth
+@@ -28,9 +28,11 @@
+ 
+ (define (find needle haystack) 
+   (let searcher ([n 0] [haystack haystack])
++    (prn n)
++    (prn haystack)
+     (cond
+       [(not haystack) false]
+-      [(equals? needle (car haystack)) n]
++      [(equal? needle (car haystack)) n]
+       [true (searcher (add1 n) (cdr haystack))])))
+ 
+ ;; Returns (head, tail) around the element requested,
+-- 
+2.25.1
+
