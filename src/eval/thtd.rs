@@ -4,6 +4,7 @@ mod env;
 mod eq;
 mod funcs;
 mod math;
+mod misc;
 mod pairs_lists;
 mod quoting;
 mod strings;
@@ -28,9 +29,10 @@ pub fn add_thtandard_library(engine: &mut Engine) {
 
     for (name, special_form) in [
         ("quote", quote as _),
+        ("quasiquote", quasiquote as _),
+        ("unquote", unquote as _),
         ("define", define as _),
-        ("lambda", lambda_unvariadic as _),
-        ("lambda*", lambda_variadic as _),
+        ("lambda", lambda as _),
         ("if", if_ as _),
         ("let", let_ as _),
     ] {
@@ -43,6 +45,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
     }
 
     for (name, native_func) in [
+        // functions
+        ("apply", apply as _),
         // math
         ("+", add as _),
         ("-", sub as _),
@@ -103,8 +107,9 @@ pub fn add_thtandard_library(engine: &mut Engine) {
     for source in [
         include_str!("thtd/funcs.ruth"),
         include_str!("thtd/math.ruth"),
+        include_str!("thtd/pairs_lists.ruth"),
     ] {
-        engine.read_eval(source).unwrap();
+        engine.read_eval(source, "<thtdlib>".to_owned()).unwrap();
     }
 }
 

@@ -18,13 +18,13 @@ impl Num {
         })
     }
 
-    fn from_expr(engine: &mut Engine, expr: Gc<Expr>) -> Result<Num, Gc<Expr>> {
+    fn from_expr(engine: &mut Engine, expr: Gc<Expr>, idx: usize) -> Result<Num, Gc<Expr>> {
         Ok(if let Expr::Integer(int) = &*expr {
             Num::Int(*int)
         } else if let Expr::Float(float) = &*expr {
             Num::Float(*float)
         } else {
-            return Err(bad_arg_type(engine, expr.clone(), 0, "number"));
+            return Err(bad_arg_type(engine, expr.clone(), idx, "number"));
         })
     }
 
@@ -66,7 +66,7 @@ num_ops! {
 pub fn add(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     let mut sum = Num::Int(0);
     for (idx, arg) in args.iter().enumerate() {
-        let num = match Num::from_expr(engine, args[0].to_owned()) {
+        let num = match Num::from_expr(engine, arg.to_owned(), idx) {
             Ok(it) => it,
             Err(ono) => return ono,
         };
@@ -80,7 +80,7 @@ pub fn sub(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
         return ono;
     };
 
-    let mut difference = match Num::from_expr(engine, args[0].to_owned()) {
+    let mut difference = match Num::from_expr(engine, args[0].to_owned(), 0) {
         Ok(it) => it,
         Err(ono) => return ono,
     };
@@ -94,7 +94,7 @@ pub fn sub(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
     }
 
     for (idx, arg) in args.iter().enumerate().skip(1) {
-        let num = match Num::from_expr(engine, args[0].to_owned()) {
+        let num = match Num::from_expr(engine, arg.to_owned(), idx) {
             Ok(it) => it,
             Err(ono) => return ono,
         };
@@ -107,7 +107,7 @@ pub fn sub(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
 pub fn mul(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
     let mut product = Num::Int(1);
     for (idx, arg) in args.iter().enumerate() {
-        let num = match Num::from_expr(engine, args[0].to_owned()) {
+        let num = match Num::from_expr(engine, arg.to_owned(), idx) {
             Ok(it) => it,
             Err(ono) => return ono,
         };
@@ -121,7 +121,7 @@ pub fn div(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
         return ono;
     };
 
-    let mut quotient = match Num::from_expr(engine, args[0].to_owned()) {
+    let mut quotient = match Num::from_expr(engine, args[0].to_owned(), 0) {
         Ok(it) => it,
         Err(ono) => return ono,
     };
@@ -135,7 +135,7 @@ pub fn div(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
     }
 
     for (idx, arg) in args.iter().enumerate().skip(1) {
-        let num = match Num::from_expr(engine, args[0].to_owned()) {
+        let num = match Num::from_expr(engine, arg.to_owned(), idx) {
             Ok(it) => it,
             Err(ono) => return ono,
         };
@@ -192,11 +192,11 @@ macro_rules! comparisons {
             if let Err(ono) = check_argc(engine, args, 2, 2) {
                 return ono;
             };
-            let lhs = match Num::from_expr(engine, args[0].to_owned()) {
+            let lhs = match Num::from_expr(engine, args[0].to_owned(), 0) {
                 Ok(it) => it,
                 Err(ono) => return ono,
             };
-            let rhs = match Num::from_expr(engine, args[1].to_owned()) {
+            let rhs = match Num::from_expr(engine, args[1].to_owned(), 1) {
                 Ok(it) => it,
                 Err(ono) => return ono,
             };
@@ -228,13 +228,13 @@ pub fn num_eq(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) 
     };
     // unwrap because we just checked
     let (lhs, rest) = args.split_first().unwrap();
-    let lhs = match Num::from_expr(engine, lhs.to_owned()) {
+    let lhs = match Num::from_expr(engine, lhs.to_owned(), 0) {
         Ok(it) => it,
         Err(ono) => return ono,
     };
     let mut all_eq = true;
-    for rhs in rest {
-        let rhs = match Num::from_expr(engine, rhs.to_owned()) {
+    for (idx, rhs) in rest.iter().enumerate() {
+        let rhs = match Num::from_expr(engine, rhs.to_owned(), idx + 1) {
             Ok(it) => it,
             Err(ono) => return ono,
         };

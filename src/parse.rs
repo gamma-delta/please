@@ -1,6 +1,6 @@
-use std::{fmt::Debug, num::ParseIntError};
+use std::{fmt::Debug, num::ParseIntError, ops::Range};
 
-use ariadne::{CharSet, Config, Label, Report, ReportKind, Source};
+use ariadne::{CharSet, Label, Report, ReportKind};
 use gc::Gc;
 use thiserror::Error;
 
@@ -11,16 +11,18 @@ use crate::{Engine, Expr};
 #[error("{source:}")]
 pub struct ExprParseError {
     source: ExprParseErrorInfo,
-    report: Report,
+    report: Report<(String, Range<usize>)>,
 }
 
 impl ExprParseError {
-    fn new<'a>(s: &'a str, err: ExprParseErrorLimited<'a>) -> ExprParseError {
+    fn new<'a>(s: &'a str, source: String, err: ExprParseErrorLimited<'a>) -> ExprParseError {
         let (start, end) = string_pos(s, err.offender);
 
-        let mut report = Report::build(ReportKind::Error, (), start)
+        let mut report = Report::build(ReportKind::Error, &source, start)
             .with_config(ariadne::Config::default().with_char_set(CharSet::Ascii))
             .with_message(err.data.to_string());
+
+        let all = (source.clone(), start..end);
 
         match &err.data {
             ExprParseErrorInfo::ParseInt {
@@ -29,7 +31,7 @@ impl ExprParseError {
                 source,
             } => {
                 report = report
-                    .with_label(Label::new(start..end).with_message(source.to_string()))
+                    .with_label(Label::new(all.clone()).with_message(source.to_string()))
                     .with_note(if let Some(prefix) = radix_prefix {
                         format!("the prefix {} indicates a base-{} literal", prefix, radix)
                     } else {
@@ -38,17 +40,17 @@ impl ExprParseError {
             }
             &ExprParseErrorInfo::BadIntRadix(radix) => {
                 report = report
-                    .with_label(Label::new(start..end).with_message(format!("this {:?} is not valid", radix)))
+                    .with_label(Label::new(all.clone()).with_message(format!("this {:?} is not valid", radix)))
                     .with_note("the valid indicators are 'x' for base-16, 'o' for base-8, and 'b' for base-2");
             }
             ExprParseErrorInfo::IndeterminableToken => {
                 report = report
-                    .with_label(Label::new(start..end).with_message("this is unintelligible"))
+                    .with_label(Label::new(all.clone()).with_message("this is unintelligible"))
                     .with_note(format!("the problem is {:?}", err.offender));
             }
             ExprParseErrorInfo::ExpectedCloseParen { opener, closer } => {
                 report = report
-                    .with_label(Label::new(start..end).with_message(format!(
+                    .with_label(Label::new(all.clone()).with_message(format!(
                         "this {:?} expects a {:?} to close it, but there wasn't one",
                         opener, closer
                     )))
@@ -59,14 +61,13 @@ impl ExprParseError {
                 expected_closer,
                 got_closer,
             } => {
-                println!("span {:?} with content {:?}", start..end, &s[start..end]);
                 report = report
-                    .with_label(Label::new(start..start + 1).with_message(format!(
+                    .with_label(Label::new(all.clone()).with_message(format!(
                         "this {:?} expects a {:?} to close it...",
                         opener, expected_closer
                     )))
                     .with_label(
-                        Label::new(end - 1..end)
+                        Label::new(all.clone())
                             .with_message(format!("but there was a {:?} instead", got_closer)),
                     )
                     .with_note(format!(
@@ -74,27 +75,32 @@ impl ExprParseError {
                         got_closer, expected_closer
                     ));
             }
+            ExprParseErrorInfo::WrongDotTrailCount => {
+                report = report.with_label(
+                    Label::new(all.clone())
+                        .with_message("exactly one expr is required after a dot to make a pair"),
+                )
+            }
             ExprParseErrorInfo::ExpectedCloseQuote => {
                 report =
                     report
-                        .with_label(Label::new(start..start + 1).with_message(
+                        .with_label(Label::new(all.clone()).with_message(
                             "this double-quote expects a double-quote to close it...",
                         ))
                         .with_label(
-                            Label::new(end - 1..end)
+                            Label::new(all.clone())
                                 .with_message("but none was found here (or it was escaped)"),
                         )
                         .with_note("try putting a '\"' at the end");
             }
             ExprParseErrorInfo::InvalidEscape(pos, problem) => {
-                report = report.with_label(
-                    Label::new(start + *pos..start + *pos + 1).with_message(problem.to_string()),
-                );
+                report =
+                    report.with_label(Label::new(all.clone()).with_message(problem.to_string()));
             }
             ExprParseErrorInfo::InvalidRemainder => {
                 report = report
                     .with_label(
-                        Label::new(start..end)
+                        Label::new(all.clone())
                             .with_message("this was left over after reading a well-formed expr"),
                     )
                     .with_note(
@@ -103,19 +109,19 @@ impl ExprParseError {
             }
             ExprParseErrorInfo::ExpectedCloseBlockComment => {
                 report = report
-                    .with_label(Label::new(start..start + 1).with_message(
+                    .with_label(Label::new(all.clone()).with_message(
                         "this block comment start expects a double-quote to close it...",
                     ))
-                    .with_label(Label::new(end - 1..end).with_message("but none was found here"))
+                    .with_label(Label::new(all.clone()).with_message("but none was found here"))
                     .with_note("try putting a \"*;\" at the end");
             }
             ExprParseErrorInfo::QuoteNothing => {
                 report =
-                    report.with_label(Label::new(start..end).with_message("you can't quote that"))
+                    report.with_label(Label::new(all.clone()).with_message("you can't quote that"))
             }
             ExprParseErrorInfo::Eof => {
                 report =
-                    report.with_label(Label::new(start..end).with_message("found nothing here"))
+                    report.with_label(Label::new(all.clone()).with_message("found nothing here"))
             }
         }
 
@@ -125,7 +131,7 @@ impl ExprParseError {
         }
     }
 
-    pub fn report(&self) -> &Report {
+    pub fn report(&self) -> &Report<(String, Range<usize>)> {
         &self.report
     }
 
@@ -162,6 +168,8 @@ pub enum ExprParseErrorInfo {
         expected_closer: char,
         got_closer: char,
     },
+    #[error("expected exactly one expr after a dot")]
+    WrongDotTrailCount,
     #[error("expected a closing quote")]
     ExpectedCloseQuote,
     /// The usize is the position from the start of the string including the quote
@@ -184,12 +192,17 @@ struct ExprParseErrorLimited<'a> {
 }
 
 /// Read as many datums as possible from the source string until it is exhausted.
-pub fn read_many(whole: &str, engine: &mut Engine) -> Result<Vec<Expr>, ExprParseError> {
+pub fn read_many(
+    whole: &str,
+    source: String,
+    engine: &mut Engine,
+) -> Result<Vec<Expr>, ExprParseError> {
     let mut out = Vec::new();
 
     let mut s = whole;
     while !s.is_empty() {
-        let (expr, rest) = read_expr(s, engine).map_err(|err| ExprParseError::new(whole, err))?;
+        let (expr, rest) = try_read_expr(s, engine)
+            .map_err(|err| ExprParseError::new(whole, source.to_owned(), err))?;
         if let Some(expr) = expr {
             out.push(expr);
         }
@@ -200,11 +213,12 @@ pub fn read_many(whole: &str, engine: &mut Engine) -> Result<Vec<Expr>, ExprPars
 }
 
 /// Read exactly one datum and return it.
-pub fn read_one(s: &str, engine: &mut Engine) -> Result<Expr, ExprParseError> {
-    let exprs = read_many(s, engine)?;
+pub fn read_one(s: &str, source: String, engine: &mut Engine) -> Result<Expr, ExprParseError> {
+    let exprs = read_many(s, source.clone(), engine)?;
     if exprs.is_empty() {
         Err(ExprParseError::new(
             s,
+            source,
             ExprParseErrorLimited {
                 data: ExprParseErrorInfo::Eof,
                 offender: s,
@@ -213,6 +227,7 @@ pub fn read_one(s: &str, engine: &mut Engine) -> Result<Expr, ExprParseError> {
     } else if exprs.len() >= 2 {
         Err(ExprParseError::new(
             s,
+            source,
             ExprParseErrorLimited {
                 data: ExprParseErrorInfo::InvalidRemainder,
                 offender: s,
@@ -258,7 +273,7 @@ fn is_delim(c: char) -> bool {
     }
 }
 
-fn read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Option<Expr>> {
+fn try_read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Option<Expr>> {
     let s = whole.trim_start();
     if s.starts_with(";*") {
         // block comment
@@ -278,7 +293,7 @@ fn read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Option<Ex
         }
 
         if let Ok(rest) = recur(s) {
-            return read_expr(rest, state);
+            return try_read_expr(rest, state);
         } else {
             return Err(ExprParseErrorLimited {
                 data: ExprParseErrorInfo::ExpectedCloseBlockComment,
@@ -294,13 +309,13 @@ fn read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Option<Ex
             // get the end of the string
             s.split_at(s.len()).1
         };
-        return read_expr(rest, state);
+        return try_read_expr(rest, state);
     }
 
-    if let Some(quote) = try_read_quote(s, state) {
-        let (quoted, rest) = quote?;
+    if let Some(quote) = try_read_quote_family(s, state) {
+        let ((quotefunc, quoted), rest) = quote?;
 
-        let quote = state.intern_symbol("quote");
+        let quote = state.intern_symbol(quotefunc);
         let quote_idx = Gc::new(Expr::Symbol(quote));
         let quoted_idx = Gc::new(quoted);
         let null_idx = Gc::new(Expr::Nil);
@@ -317,11 +332,7 @@ fn read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Option<Ex
         Ok((Some(Expr::String(string)), rest))
     } else if let Some(ur_mom) = try_read_sexpr(s, state) {
         let (sexhaha, rest) = ur_mom?;
-        let expr = match sexhaha {
-            Some((car, cdr)) => Expr::Pair(car, cdr),
-            None => Expr::Nil,
-        };
-        Ok((Some(expr), rest))
+        Ok((Some(sexhaha), rest))
     } else if let Some(symbol) = try_read_symbol(s, state) {
         // Do symbols last so we need to specially omit as little as possible
         let (id, rest) = symbol?;
@@ -419,10 +430,7 @@ fn is_valid_symbol(s: &str) -> bool {
 
 /// May return a pair or null
 #[allow(clippy::type_complexity)]
-fn try_read_sexpr<'a>(
-    s: &'a str,
-    state: &mut Engine,
-) -> Option<ReadResult<'a, Option<(Gc<Expr>, Gc<Expr>)>>> {
+fn try_read_sexpr<'a>(s: &'a str, state: &mut Engine) -> Option<ReadResult<'a, Expr>> {
     #[allow(clippy::type_complexity)]
     fn recurse<'b>(
         s: &'b str,
@@ -430,12 +438,12 @@ fn try_read_sexpr<'a>(
         closer: char,
         state: &mut Engine,
         original_rest: &'b str,
-    ) -> Result<(Option<(Gc<Expr>, Gc<Expr>)>, &'b str), ExprParseErrorLimited<'b>> {
+    ) -> Result<(Expr, &'b str), ExprParseErrorLimited<'b>> {
         let s = s.trim_start();
 
         if let Some(rest) = s.strip_prefix(closer) {
             // we can finally rest
-            Ok((None, rest))
+            Ok((Expr::Nil, rest))
         } else if s.starts_with(is_closer) {
             let (start, _) = string_pos(original_rest, s);
             Err(ExprParseErrorLimited {
@@ -447,17 +455,46 @@ fn try_read_sexpr<'a>(
                 offender: &original_rest[..=start],
             })
         } else {
-            let (car, rest) = read_expr(s, state)?;
+            let (car, rest) = try_read_expr(s, state)?;
             match car {
                 Some(car) => {
+                    let (rest_first, rest_last) = read_until_delim(rest);
+                    if rest_first == "." {
+                        // ok we expect one more expr then leave
+                        let (expr, rest) = try_read_expr(rest_last, state)?;
+                        let cdr = match expr {
+                            Some(it) => it,
+                            None => {
+                                return Err(ExprParseErrorLimited {
+                                    data: ExprParseErrorInfo::WrongDotTrailCount,
+                                    offender: s,
+                                })
+                            }
+                        };
+
+                        return if let Some(rest) = rest.strip_prefix(closer) {
+                            let pair = Expr::Pair(Gc::new(car), Gc::new(cdr));
+                            Ok((pair, rest))
+                        } else if let Some(problem) = rest.strip_prefix(is_closer) {
+                            Err(ExprParseErrorLimited {
+                                data: ExprParseErrorInfo::WrongCloseParen {
+                                    opener,
+                                    expected_closer: closer,
+                                    got_closer: problem.chars().next().unwrap(),
+                                },
+                                offender: &s[..=problem.len()],
+                            })
+                        } else {
+                            Err(ExprParseErrorLimited {
+                                data: ExprParseErrorInfo::WrongDotTrailCount,
+                                offender: rest,
+                            })
+                        };
+                    }
+
                     let (cdr, rest) = recurse(rest, opener, closer, state, original_rest)?;
-                    let cdr = if let Some((cdr0, cdr1)) = cdr {
-                        Gc::new(Expr::Pair(cdr0, cdr1))
-                    } else {
-                        // that's the null, point to null
-                        Gc::new(Expr::Nil)
-                    };
-                    Ok((Some((Gc::new(car), cdr)), rest))
+                    let pair = Expr::Pair(Gc::new(car), Gc::new(cdr));
+                    Ok((pair, rest))
                 }
                 None => Err(ExprParseErrorLimited {
                     data: ExprParseErrorInfo::ExpectedCloseParen { opener, closer },
@@ -473,15 +510,11 @@ fn try_read_sexpr<'a>(
         if let Some(closer) = match_paren(opener) {
             let s = &rest[opener.len_utf8()..];
 
-            return match recurse(s, opener, closer, state, rest) {
-                Ok((Some((car, cdr)), rest)) => Some(Ok((Some((car, cdr)), rest))),
-                Ok((None, rest)) => {
-                    // we just read a `()`
-                    // now we don't need to special case it!
-                    Some(Ok((None, rest)))
-                }
-                Err(ono) => Some(Err(ono)),
+            let (list, rest) = match recurse(s, opener, closer, state, rest) {
+                Ok(it) => it,
+                Err(err) => return Some(Err(err)),
             };
+            return Some(Ok((list, rest)));
         }
     }
 
@@ -564,20 +597,34 @@ fn escape(s: &str) -> Result<(String, &str), InvalidEscape> {
     }
 }
 
-fn try_read_quote<'a>(whole: &'a str, state: &mut Engine) -> Option<ReadResult<'a, Expr>> {
-    let s = whole.trim_start();
-    s.strip_prefix('\'').map(|s| {
-        read_expr(s, state).and_then(|(expr, rest)| {
+fn try_read_quote_family<'a>(
+    whole: &'a str,
+    state: &mut Engine,
+) -> Option<ReadResult<'a, (&'static str, Expr)>> {
+    let whole = whole.trim_start();
+    let quoter = whole.chars().next()?;
+    quote_shortcuts(quoter).map(|quote| {
+        let s = &whole[quoter.len_utf8()..];
+        try_read_expr(s, state).and_then(|(expr, rest)| {
             if let Some(expr) = expr {
-                Ok((expr, rest))
+                Ok(((quote, expr), rest))
             } else {
                 Err(ExprParseErrorLimited {
                     data: ExprParseErrorInfo::QuoteNothing,
                     // include quote
-                    offender: &whole[..=1],
+                    offender: whole,
                 })
             }
         })
+    })
+}
+
+fn quote_shortcuts(c: char) -> Option<&'static str> {
+    Some(match c {
+        '\'' => "quote",
+        '`' => "quasiquote",
+        ',' => "unquote",
+        _ => return None,
     })
 }
 
@@ -623,17 +670,4 @@ fn test_string_pos() {
 
     let bounds = string_pos(s, s);
     assert_eq!(bounds, (0, s.len()));
-}
-
-#[test]
-fn ariadne() {
-    let source = "(r\nr\n}";
-
-    Report::build(ReportKind::Error, (), 0)
-        .with_config(Config::default().with_char_set(CharSet::Ascii))
-        .with_label(Label::new(0..1).with_message("opens here"))
-        .with_label(Label::new(5..6).with_message("closes here"))
-        .finish()
-        .eprint(Source::from(source))
-        .unwrap();
 }

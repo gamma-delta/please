@@ -2,7 +2,6 @@ mod eval;
 mod parse;
 
 use eval::TailRec;
-use nonempty::NonEmpty;
 pub use parse::{ExprParseError, ExprParseErrorInfo};
 
 use std::{
@@ -107,19 +106,19 @@ impl Engine {
     }
 
     /// Reads the source and return one token from it.
-    pub fn read_one(&mut self, s: &str) -> Result<Expr, ExprParseError> {
-        parse::read_one(s, self)
+    pub fn read_one(&mut self, s: &str, source_name: String) -> Result<Expr, ExprParseError> {
+        parse::read_one(s, source_name, self)
     }
 
     /// Reads the source and returns everything found in it.
-    pub fn read_many(&mut self, s: &str) -> Result<Vec<Expr>, ExprParseError> {
-        parse::read_many(s, self)
+    pub fn read_many(&mut self, s: &str, source_name: String) -> Result<Vec<Expr>, ExprParseError> {
+        parse::read_many(s, source_name, self)
     }
 
     /// Read and eval everything in the source file, returning
     /// the item in tail position (or `()` if there isn't anything).
-    pub fn read_eval(&mut self, s: &str) -> Result<Gc<Expr>, ExprParseError> {
-        Ok(parse::read_many(s, self)?
+    pub fn read_eval(&mut self, s: &str, source_name: String) -> Result<Gc<Expr>, ExprParseError> {
+        Ok(parse::read_many(s, source_name, self)?
             .into_iter()
             .map(|e| self.eval(self.thtdlib(), Gc::new(e)))
             .last()
@@ -230,6 +229,9 @@ impl Engine {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
                 Expr::Float(f) => write!(w, "{}", f),
+                Expr::String(s) => {
+                    write!(w, "{}", s)
+                }
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {
                         write!(w, "{}", s)
@@ -267,9 +269,6 @@ impl Engine {
                 }
                 Expr::Nil => {
                     write!(w, "()")
-                }
-                Expr::String(s) => {
-                    write!(w, "{:?}", s)
                 }
                 Expr::SpecialForm { name, .. } => {
                     if let Some(name) = engine.get_symbol_str(*name) {
@@ -326,17 +325,29 @@ impl Engine {
     /// or `Null` (ie it's not a proper list)
     /// then `None` is returned.
     pub fn sexp_to_list(&self, expr: Gc<Expr>) -> Option<Vec<Gc<Expr>>> {
-        let (car, cdr) = match &*expr {
-            Expr::Pair(car, cdr) => (car, cdr),
-            // finish iterating
-            Expr::Nil => return Some(Vec::new()),
-            _ => {
-                return None;
+        let (list, end) = self.expr_to_improper_list(expr);
+        if let Expr::Nil = &*end {
+            Some(list)
+        } else {
+            None
+        }
+    }
+
+    /// Turn an improper list into the list leading up to the last element,
+    /// and the last element. Proper lists will have the last element be `()`.
+    pub fn expr_to_improper_list(&self, expr: Gc<Expr>) -> (Vec<Gc<Expr>>, Gc<Expr>) {
+        fn recur(engine: &Engine, expr: Gc<Expr>, wip: &mut Vec<Gc<Expr>>) -> Gc<Expr> {
+            match &*expr {
+                Expr::Pair(car, cdr) => {
+                    wip.push(car.to_owned());
+                    recur(engine, cdr.to_owned(), wip)
+                }
+                _ => expr,
             }
-        };
-        let mut out = vec![car.clone()];
-        out.extend(self.sexp_to_list(cdr.clone())?);
-        Some(out)
+        }
+        let mut out = Vec::new();
+        let last = recur(self, expr, &mut out);
+        (out, last)
     }
 
     /// Create a cons list from the given list, and return its head.

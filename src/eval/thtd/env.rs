@@ -8,8 +8,8 @@ pub fn define(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]
         return TailRec::Exit(e);
     }
 
-    let name = args[0].to_owned();
-    if let Expr::Symbol(id) = &*name {
+    let first = args[0].to_owned();
+    if let Expr::Symbol(id) = &*first {
         if let Err(e) = check_argc(engine, args, 2, 2) {
             return TailRec::Exit(e);
         }
@@ -17,40 +17,26 @@ pub fn define(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]
         let evaled = engine.eval(env.to_owned(), args[1].to_owned());
         env.borrow_mut().insert(*id, evaled);
         TailRec::Exit(Gc::new(Expr::Nil))
-    } else if let Some(lambda) = engine.sexp_to_list(name.clone()) {
-        let arg_names = lambda
-            .into_iter()
-            .map(|expr| {
-                if let Expr::Symbol(sym) = *expr {
-                    Ok(sym)
-                } else {
-                    Err(bad_arg_type(engine, name.clone(), 0, "list of symbols"))
-                }
-            })
-            .collect::<Result<Vec<_>, _>>();
-        let arg_names = match arg_names {
-            Ok(it) => it,
-            Err(ono) => return TailRec::Exit(ono),
-        };
+    } else if let Expr::Pair(name, tail) = &*first {
+        // > (define (NAME . TAIL) BODY*) becomes (define NAME (lambda TAIL BODY*))
+        // --alwinfy
+        // construct a sex expression and just have the eval do it for us
+        let lambda_name = engine.intern_symbol("lambda");
+        let mut lambda_list = vec![Gc::new(Expr::Symbol(lambda_name)), tail.to_owned()];
+        lambda_list.extend_from_slice(&args[1..]);
+        let lambda_sexpr = engine.list_to_sexp(&lambda_list);
 
-        let (name, arg_names) = match arg_names.split_first() {
-            Some(it) => it,
-            None => {
-                return TailRec::Exit(engine.make_err(
-                    "lambda form of define requires a name for the definition".to_string(),
-                    None,
-                ))
-            }
-        };
+        if !matches!(&**name, Expr::Symbol(..)) {
+            return TailRec::Exit(bad_arg_type(engine, first, 0, "(symbol, any)"));
+        }
 
-        let lambda = Expr::Procedure {
-            args: arg_names.to_owned(),
-            body: args[1..].to_owned(),
-            env: env.clone(),
-            variadic: false,
-        };
-        env.borrow_mut().insert(*name, Gc::new(lambda));
-        TailRec::Exit(Gc::new(Expr::Nil))
+        let define_name = engine.intern_symbol("define");
+        let define_list = &[
+            Gc::new(Expr::Symbol(define_name)),
+            name.to_owned(),
+            lambda_sexpr,
+        ];
+        TailRec::TailRecur(engine.list_to_sexp(define_list), env)
     } else {
         TailRec::Exit(bad_arg_type(engine, args[0].clone(), 0, "symbol"))
     }

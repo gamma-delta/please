@@ -3,30 +3,30 @@ use std::io::{self, Write};
 use ariadne::Source;
 use gc::Gc;
 use ruth::{Engine, Expr, ExprParseErrorInfo};
+use termwiz::lineedit::{line_editor_terminal, LineEditor, NopLineEditorHost};
 
-fn main() {
-    let mut engine = Engine::new();
-
+pub fn repl(mut engine: Engine) -> termwiz::Result<()> {
     let mut in_parens = false;
 
     let ps1 = engine.intern_symbol("ps1");
     let ps2 = engine.intern_symbol("ps2");
+
+    let mut terminal = line_editor_terminal()?;
+    let mut editor = LineEditor::new(&mut terminal);
+    let mut host = NopLineEditorHost::default();
 
     let mut input = String::new();
 
     loop {
         let ps = if in_parens { ps2 } else { ps1 };
         let ps = engine.eval(engine.thtdlib(), Gc::new(Expr::Symbol(ps)));
-        let ps = match &*ps {
-            Expr::String(s) => s.as_str(),
-            _ => "",
-        };
-        print!("{}", ps);
-        io::stdout().flush().unwrap();
+        let ps = engine.print_expr(ps);
+        editor.set_prompt(&ps);
 
-        io::stdin().read_line(&mut input).unwrap();
+        let line = editor.read_line(&mut host)?.unwrap_or_default();
+        input.push_str(&line);
         // we try to be done
-        let res = engine.read_one(&input);
+        let res = engine.read_one(&input, "<repl>".to_owned());
         let expr = match res {
             Ok(it) => Ok(it),
             Err(ohno) => {
@@ -53,7 +53,12 @@ fn main() {
                 println!("{}\n", engine.write_expr(result));
             }
             Err(ono) => {
-                ono.report().eprint(Source::from(&input)).unwrap();
+                ono.report()
+                    .eprint(ariadne::sources(std::iter::once((
+                        "<repl>".to_owned(),
+                        input.to_owned(),
+                    ))))
+                    .unwrap();
             }
         }
 

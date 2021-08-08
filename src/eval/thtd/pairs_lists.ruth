@@ -2,5 +2,10 @@
     (fold () l (lambda (acc elt) (cons elt acc))))
 
 (define (list-len list)
-    (fold 0 list add1))
+    (fold 0 list (lambda (acc elt) (add1 acc))))
 
+(define (append l x) 
+    (let ([head (car l)] [tail (cdr l)])
+        (if tail
+            (cons head (append tail x))
+            (cons head x))))

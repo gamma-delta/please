@@ -12,3 +12,7 @@
         (cons (fn (car list)) (for (cdr list) fn))
         ()))
 
+(define curry (lambda* (fn args) 
+    (lambda* (newargs)
+        (apply fn (append args newargs)))))
+        
