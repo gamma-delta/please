@@ -2,3 +2,6 @@
 
 (define-macro (~> bodies) `(fold ,(car bodies) ,(cdr bodies)
   (lambda (threaded body) ())))
+
+; mm yes,,  ergonomics
+(define-macro (examine . bodies) `',bodies)

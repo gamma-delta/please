@@ -28,6 +28,7 @@
 
 (define (find needle haystack) 
   (let searcher ([n 0] [haystack haystack])
+    (prn haystack)
     (cond
       [(not haystack) false]
       [(equals? needle (car haystack)) n]

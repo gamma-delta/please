@@ -132,12 +132,14 @@ impl Engine {
                             }
                         }
 
-                        let arg_env = if *is_lambda {
+                        let arg_env = Gc::new(GcCell::new(arg_env));
+                        let body_env = if *is_lambda {
                             // lambdas are called closing over their environment
-                            Gc::new(GcCell::new(arg_env))
+                            arg_env.clone()
                         } else {
-                            // macros just use the parent environment
-                            env
+                            // macros just use the parent environment with args,
+                            // so create a disposable env for it to mess up
+                            Gc::new(GcCell::new(Namespace::new(arg_env.clone())))
                         };
 
                         let (body, tail) = match &body[..] {
@@ -150,14 +152,13 @@ impl Engine {
                             }
                         };
                         for expr in body {
-                            self.eval(arg_env.clone(), expr.clone());
+                            self.eval(body_env.clone(), expr.clone());
                         }
-                        let last = if *is_lambda {
-                            tail.to_owned()
+                        if *is_lambda {
+                            TailRec::TailRecur(tail.to_owned(), body_env)
                         } else {
-                            self.eval(arg_env.clone(), tail.clone())
-                        };
-                        TailRec::TailRecur(last, arg_env)
+                            TailRec::TailRecur(self.eval(body_env, tail.to_owned()), arg_env)
+                        }
                     }
                     _ => TailRec::Exit(
                         self.make_err("application: not a procedure".to_string(), Some(car)),
