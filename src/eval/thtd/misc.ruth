@@ -1,0 +1,4 @@
+(define-macro (do . bodies) (eval (append '(let ()) bodies)))
+
+(define-macro (~> bodies) `(fold ,(car bodies) ,(cdr bodies)
+  (lambda (threaded body) ())))

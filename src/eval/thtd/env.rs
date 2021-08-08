@@ -5,6 +5,19 @@ use crate::eval::TailRec;
 use crate::Expr;
 
 pub fn define(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+    define_internals(engine, env, args, true)
+}
+
+pub fn define_macro(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+    define_internals(engine, env, args, false)
+}
+
+fn define_internals(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+    is_lambda: bool,
+) -> TailRec {
     if let Err(e) = check_min_argc(engine, args, 2) {
         return TailRec::Exit(e);
     }
@@ -22,7 +35,7 @@ pub fn define(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]
         // > (define (NAME . TAIL) BODY*) becomes (define NAME (lambda TAIL BODY*))
         // --alwinfy
         // construct a sex expression and just have the eval do it for us
-        let lambda_name = engine.intern_symbol("lambda");
+        let lambda_name = engine.intern_symbol(if is_lambda { "lambda" } else { "macro" });
         let mut lambda_list = vec![Gc::new(Expr::Symbol(lambda_name)), tail.to_owned()];
         lambda_list.extend_from_slice(&args[1..]);
         let lambda_sexpr = engine.list_to_sexp(&lambda_list);

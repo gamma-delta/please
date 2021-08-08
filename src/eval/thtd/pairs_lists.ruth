@@ -1,19 +1,19 @@
 (define (list-rev l)
-    (fold () l (lambda (acc elt) (cons elt acc))))
+  (fold () l (lambda (acc elt) (cons elt acc))))
 
 (define (list-len list)
-    (fold 0 list (lambda (acc elt) (add1 acc))))
+  (fold 0 list (lambda (acc elt) (add1 acc))))
 
 (define (append l x) 
-    (let ([head (car l)] [tail (cdr l)])
-        (if tail
-            (cons head (append tail x))
-            (cons head x))))
+  (let ([head (car l)] [tail (cdr l)])
+    (if tail
+      (cons head (append tail x))
+      (cons head x))))
 
 (define (list-nth l n)
-    (if (<= n 0)
-        (car l)
-        (list-nth (cdr l) (sub1 n))))
+  (if (<= n 0)
+    (car l)
+    (list-nth (cdr l) (sub1 n))))
 
 (define (first l)   (car l))
 (define (second l)  (list-nth l 1))
@@ -25,3 +25,14 @@
 (define (eighth l)  (list-nth l 7))
 (define (ninth l)   (list-nth l 8))
 (define (tenth l)   (list-nth l 9))
+
+(define (find needle haystack) 
+  (let searcher ([n 0] [haystack haystack])
+    (cond
+      [(not haystack) false]
+      [(equals? needle (car haystack)) n]
+      [true (searcher (add1 n) (cdr haystack))])))
+
+;; Returns (head, tail) around the element requested,
+;; or false if it isn't found.
+;; Uses `equal?`

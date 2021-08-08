@@ -32,6 +32,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("quasiquote", quasiquote as _),
         ("unquote", unquote as _),
         ("define", define as _),
+        ("define-macro", define_macro as _),
         ("lambda", lambda as _),
         ("macro", macro_ as _),
         ("if", if_ as _),
@@ -84,6 +85,9 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("nil?", is_nil as _),
         ("string?", is_string as _),
         ("symbol?", is_symbol as _),
+        ("callable?", is_callable as _),
+        ("procedure?", is_procedure as _),
+        ("macro?", is_macro as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
@@ -118,6 +122,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         include_str!("thtd/funcs.ruth"),
         include_str!("thtd/math.ruth"),
         include_str!("thtd/pairs_lists.ruth"),
+        include_str!("thtd/misc.ruth"),
     ] {
         engine.read_eval(source, "<thtdlib>".to_owned()).unwrap();
     }

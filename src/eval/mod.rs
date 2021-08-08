@@ -139,7 +139,12 @@ impl Engine {
                         for expr in body {
                             self.eval(arg_env.clone(), expr.clone());
                         }
-                        TailRec::TailRecur(tail.clone(), arg_env)
+                        let last = if *is_lambda {
+                            tail.to_owned()
+                        } else {
+                            self.eval(arg_env.clone(), tail.clone())
+                        };
+                        TailRec::TailRecur(last, arg_env)
                     }
                     _ => TailRec::Exit(
                         self.make_err("application: not a procedure".to_string(), Some(car)),

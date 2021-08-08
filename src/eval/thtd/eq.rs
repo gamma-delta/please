@@ -77,4 +77,7 @@ predicates! {
     (is_nil Expr::Nil)
     (is_string Expr::String(_))
     (is_symbol Expr::Symbol(_))
+    (is_callable (Expr::NativeProcedure { .. } | Expr::SpecialForm { .. } | Expr::Procedure { .. }))
+    (is_procedure (Expr::NativeProcedure { .. } | Expr::Procedure { is_lambda: true, .. }))
+    (is_macro (Expr::SpecialForm { .. } | Expr::Procedure { is_lambda: false, .. }))
 }

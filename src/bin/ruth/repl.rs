@@ -1,9 +1,6 @@
-use std::io::{self, Write};
-
-use ariadne::Source;
 use gc::Gc;
 use ruth::{Engine, Expr, ExprParseErrorInfo};
-use termwiz::lineedit::{line_editor_terminal, LineEditor, NopLineEditorHost};
+use termwiz::lineedit::{line_editor_terminal, LineEditor, LineEditorHost, NopLineEditorHost};
 
 pub fn repl(mut engine: Engine) -> termwiz::Result<()> {
     let mut in_parens = false;
@@ -25,6 +22,8 @@ pub fn repl(mut engine: Engine) -> termwiz::Result<()> {
 
         let line = editor.read_line(&mut host)?.unwrap_or_default();
         input.push_str(&line);
+        host.history().add(&line);
+
         // we try to be done
         let res = engine.read_one(&input, "<repl>".to_owned());
         let expr = match res {

@@ -1,18 +1,18 @@
 ; Composing and mapping functions
 
 (define (fold acc list fn)
-    (if list
-        ; still have leftover list
-        (fold (fn acc (car list)) (cdr list) fn)
-        ; we're done, give the acc
-        acc))
+  (if list
+    ; still have leftover list
+    (fold (fn acc (car list)) (cdr list) fn)
+    ; we're done, give the acc
+    acc))
 
 (define (for list fn)
-    (if list
-        (cons (fn (car list)) (for (cdr list) fn))
-        ()))
+  (if list
+    (cons (fn (car list)) (for (cdr list) fn))
+    ()))
 
-(define curry (lambda* (fn args) 
-    (lambda* (newargs)
-        (apply fn (append args newargs)))))
-        
+(define (curry fn . args)
+  (lambda newargs
+    (apply fn (append args newargs))))
+    
