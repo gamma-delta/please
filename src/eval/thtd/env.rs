@@ -57,12 +57,6 @@ fn define_internals(
 }
 
 pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr>]) -> TailRec {
-    /*
-    (let (
-        [key val]
-        [key2 val2]) body body body)
-    */
-
     let inner_env = Gc::new(GcCell::new(Namespace::new(env.clone())));
 
     let symbol = match args.get(0).map(|s| &**s) {
@@ -97,7 +91,7 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
                 if let Expr::Symbol(id) = **name {
                     let evaled = engine.eval(inner_env.clone(), expr.to_owned());
                     inner_env.borrow_mut().insert(id, evaled.clone());
-                    names.push(id);
+                    names.push((id, None));
                     evaluated.push(evaled);
                     continue;
                 }

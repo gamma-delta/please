@@ -13,3 +13,4 @@ derivative = "2.2.0"
 gc = { version = "0.4.1", features = ["derive"] }
 termwiz = "0.13.0"
 pico-args = "0.4.2"
+itertools = "0.10.1"

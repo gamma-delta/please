@@ -38,8 +38,49 @@ fn lambda_macro_inner(
     let args_symbols = args_list
         .into_iter()
         .map(|arg| match &*arg {
-            Expr::Symbol(it) => Ok(*it),
-            _ => Err(bad_arg_type(engine, arg, 0, "list of symbols")),
+            Expr::Symbol(it) => Ok((*it, None)),
+            Expr::Pair(car, cdr) => {
+                let sym = if let Expr::Symbol(sym) = &**car {
+                    *sym
+                } else {
+                    return Err(bad_arg_type(
+                        engine,
+                        arg,
+                        0,
+                        "list of symbols or (symbol default)s",
+                    ));
+                };
+                let default = match engine.sexp_to_list(cdr.to_owned()) {
+                    Some(it) => it,
+                    None => {
+                        return Err(bad_arg_type(
+                            engine,
+                            arg,
+                            0,
+                            "list of symbols or (symbol default)s",
+                        ))
+                    }
+                };
+                let default = match default.as_slice() {
+                    [it] => it.to_owned(),
+                    _ => {
+                        return Err(bad_arg_type(
+                            engine,
+                            arg,
+                            0,
+                            "list of symbols or (symbol default)s",
+                        ))
+                    }
+                };
+                let default = engine.eval(env.clone(), default);
+                Ok((sym, Some(default)))
+            }
+            _ => Err(bad_arg_type(
+                engine,
+                arg,
+                0,
+                "list of symbols or (symbol default)s",
+            )),
         })
         .collect::<Result<Vec<_>, _>>();
     let mut args_symbols = match args_symbols {
@@ -47,7 +88,7 @@ fn lambda_macro_inner(
         Err(ono) => return TailRec::Exit(ono),
     };
     if let Some(last) = vararg_name {
-        args_symbols.push(last);
+        args_symbols.push((last, None));
     }
 
     let body = args[1..].to_owned();

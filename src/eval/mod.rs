@@ -2,6 +2,7 @@ use crate::{Engine, Expr, Namespace};
 
 mod thtd;
 use gc::{Gc, GcCell};
+use itertools::{EitherOrBoth, Itertools};
 pub use thtd::add_thtandard_library;
 
 /// Do we use tail recursion for a special form?
@@ -84,11 +85,9 @@ impl Engine {
                         // Fill the arg slots via a new namespace
                         let mut arg_env = Namespace::new(closed_env.clone());
 
-                        // Eval the args in the parent context
                         let args_passed = if *is_lambda {
-                            args
-                                // eval args for a function call
-                                .into_iter()
+                            // eval args in parent context for a function call
+                            args.into_iter()
                                 .map(|arg| self.eval(env.clone(), arg))
                                 .collect::<Vec<_>>()
                         } else {
@@ -96,36 +95,50 @@ impl Engine {
                             args
                         };
 
-                        for (idx, &symbol) in arg_names.iter().enumerate() {
+                        let minimum_argc = arg_names
+                            .iter()
+                            .filter(|(_, default)| default.is_none())
+                            .count();
+                        let argc_checker = if *variadic {
+                            thtd::check_min_argc(self, &args_passed, minimum_argc - 1)
+                        } else {
+                            thtd::check_argc(self, &args_passed, minimum_argc, args_passed.len())
+                        };
+                        if let Err(ono) = argc_checker {
+                            return TailRec::Exit(ono);
+                        }
+
+                        for (idx, arg_default) in
+                            arg_names.iter().zip_longest(&args_passed).enumerate()
+                        {
+                            let (symbol, val) = match arg_default {
+                                // We have a value to fill in the rhs, ignore default
+                                EitherOrBoth::Both((sym, _default), val) => (*sym, val.to_owned()),
+                                // We don't have any more args passed, but we do have a default
+                                EitherOrBoth::Left((sym, Some(default))) => {
+                                    (*sym, default.to_owned())
+                                }
+                                // We passed too many arguments or too few
+                                // should have already checked for this
+                                _ => unreachable!(),
+                            };
                             if *variadic && idx == arg_names.len() - 1 {
                                 // This is the trail arg
                                 let trail = self.list_to_sexp(&args_passed[idx..]);
                                 arg_env.insert(symbol, trail);
-                            } else if let Some(arg) = args_passed.get(idx) {
-                                arg_env.insert(symbol, arg.clone());
+                                break; // Break to prevent the next iteration from "running out" of args
                             } else {
-                                // Uh oh we ran out of args in the call
-                                let message = format!(
-                                    "application: expected {}{} args but only got {}",
-                                    arg_names.len(),
-                                    if *variadic { " or more" } else { "" },
-                                    idx
-                                );
-                                let truth = if *variadic {
-                                    self.intern_symbol("true")
-                                } else {
-                                    self.intern_symbol("false")
-                                };
-                                let data = self.list_to_sexp(&[
-                                    Gc::new(Expr::Integer(arg_names.len() as _)),
-                                    Gc::new(Expr::Symbol(truth)),
-                                    Gc::new(Expr::Integer(idx as _)),
-                                ]);
-                                return TailRec::Exit(self.make_err(message, Some(data)));
+                                arg_env.insert(symbol, val);
                             }
                         }
 
-                        let arg_env = Gc::new(GcCell::new(arg_env));
+                        let arg_env = if *is_lambda {
+                            // lambdas are called closing over their environment
+                            Gc::new(GcCell::new(arg_env))
+                        } else {
+                            // macros just use the parent environment
+                            env
+                        };
 
                         let (body, tail) = match &body[..] {
                             [body @ .., tail] => (body, tail),

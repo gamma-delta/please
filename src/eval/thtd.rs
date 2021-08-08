@@ -130,7 +130,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
 
 // "Contract" functions
 
-fn check_argc(
+pub fn check_argc(
     engine: &mut Engine,
     args: &[Gc<Expr>],
     min: usize,
@@ -158,7 +158,7 @@ fn check_argc(
     }
 }
 
-fn check_min_argc(engine: &mut Engine, args: &[Gc<Expr>], min: usize) -> Result<(), Gc<Expr>> {
+pub fn check_min_argc(engine: &mut Engine, args: &[Gc<Expr>], min: usize) -> Result<(), Gc<Expr>> {
     if min > args.len() {
         let msg = format!("expected {} args or more but got {}", min, args.len());
         let data = engine.list_to_sexp(&[
@@ -171,7 +171,7 @@ fn check_min_argc(engine: &mut Engine, args: &[Gc<Expr>], min: usize) -> Result<
     }
 }
 
-fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) -> Gc<Expr> {
+pub fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) -> Gc<Expr> {
     let msg = format!("in argument #{}, expected {}", idx, want);
     let data = engine.list_to_sexp(&[
         Gc::new(Expr::Integer(idx as _)),

@@ -51,7 +51,7 @@ pub enum Expr {
     },
 
     Procedure {
-        args: Vec<Symbol>,
+        args: Vec<(Symbol, Option<Gc<Expr>>)>,
         body: Vec<Gc<Expr>>,
         env: Gc<GcCell<Namespace>>,
         variadic: bool,
@@ -213,16 +213,23 @@ impl Engine {
                         (args.as_slice(), false)
                     };
 
-                    for (idx, &sym) in draw_now_args.iter().enumerate() {
-                        let symbol = engine.get_symbol_str(sym).unwrap_or("<unknown>");
-                        write!(w, "{}", symbol)?;
+                    for (idx, (sym, default)) in draw_now_args.iter().enumerate() {
+                        let symbol = engine.get_symbol_str(*sym).unwrap_or("<unknown>");
+                        if let Some(default) = default {
+                            write!(w, "[{} ", symbol)?;
+                            recur(engine, w, default.to_owned())?;
+                            write!(w, "]")?;
+                        } else {
+                            write!(w, "{}", symbol)?;
+                        }
                         if idx != draw_now_args.len() - 1 {
                             write!(w, " ")?;
                         }
                     }
                     if special {
+                        // a little hacky but we can't have default trail args
                         let last = engine
-                            .get_symbol_str(*args.last().unwrap())
+                            .get_symbol_str(args.last().unwrap().0)
                             .unwrap_or("<unknown>");
                         write!(w, ". {}", last)?;
                     }

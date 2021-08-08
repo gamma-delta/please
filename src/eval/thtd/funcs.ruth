@@ -15,4 +15,3 @@
 (define (curry fn . args)
   (lambda newargs
     (apply fn (append args newargs))))
-    
