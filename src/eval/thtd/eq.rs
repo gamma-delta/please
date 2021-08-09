@@ -66,7 +66,7 @@ macro_rules! predicates {
 }
 
 predicates! {
-    (is_pair Expr::Pair(..))
+    (is_pair (Expr::Pair(..) | Expr::LazyPair(..)))
     (is_number (Expr::Integer(_) | Expr::Float(_)))
     (is_exact Expr::Integer(..))
     (is_inexact Expr::Float(..))

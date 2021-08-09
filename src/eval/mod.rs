@@ -21,7 +21,7 @@ impl Engine {
 
     /// Evaluate the expression at the given location on the heap,
     /// put the result on the heap, and return it.
-    fn eval_inner(&mut self, mut env: Gc<GcCell<Namespace>>, mut expr: Gc<Expr>) -> EvalResult {
+    pub fn eval_inner(&mut self, mut env: Gc<GcCell<Namespace>>, mut expr: Gc<Expr>) -> EvalResult {
         loop {
             match self.eval_rec(env.clone(), expr) {
                 Ok(TailRec::Exit(val)) => break Ok(val),
@@ -51,22 +51,24 @@ impl Engine {
             // Lookup the symbol
             &Expr::Symbol(id) => {
                 let idx = env.borrow().lookup(id);
+                let msg = self.write_expr(expr.clone());
                 match idx {
                     Some(it) => Ok(TailRec::Exit(it)),
                     None => Err(self.make_err(
                         "application/undefined",
                         format!(
                             "application: '{} is undefined",
-                            self.write_expr(expr.clone())
+                            msg
                         ),
                         Some(expr),
                     )),
                 }
             }
-            Expr::Pair(car, cdr) => {
-                let car = self.eval_inner(env.clone(), car.clone())?;
+            Expr::Pair(..) | Expr::LazyPair(..) => {
+                let (car, cdr) = self.split_cons(expr.clone()).unwrap();
+                let car = self.eval_inner(env.clone(), car)?;
 
-                let args = match Engine::sexp_to_list(cdr.clone()) {
+                let args = match self.sexp_to_list(cdr.clone()) {
                     Some(it) => it,
                     None => {
                         return Err(self.make_err(

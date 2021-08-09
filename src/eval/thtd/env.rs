@@ -77,7 +77,7 @@ pub fn let_(
 
     check_min_argc(engine, args, 2)?;
 
-    let arg_bindings = match Engine::sexp_to_list(args[0].to_owned()) {
+    let arg_bindings = match engine.sexp_to_list(args[0].to_owned()) {
         Some(it) => it,
         None => {
             return Err(bad_arg_type(
@@ -92,7 +92,7 @@ pub fn let_(
     let mut names = vec![];
     let mut evaluated = vec![];
     for binding in arg_bindings {
-        if let Some(pair) = Engine::sexp_to_list(binding) {
+        if let Some(pair) = engine.sexp_to_list(binding) {
             if let [name, expr] = pair.as_slice() {
                 if let Expr::Symbol(id) = **name {
                     let evaled = engine.eval_inner(inner_env.clone(), expr.to_owned())?;

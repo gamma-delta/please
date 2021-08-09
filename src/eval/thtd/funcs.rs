@@ -33,7 +33,7 @@ fn lambda_macro_inner(
     check_min_argc(engine, args, 2)?;
 
     let args_list = args[0].clone();
-    let (args_list, last) = Engine::expr_to_improper_list(args_list);
+    let (args_list, last) = engine.expr_to_improper_list(args_list);
 
     let vararg_name = match &*last {
         Expr::Nil => None,
@@ -45,8 +45,9 @@ fn lambda_macro_inner(
         .into_iter()
         .map(|arg| match &*arg {
             Expr::Symbol(it) => Ok((*it, None)),
-            Expr::Pair(car, cdr) => {
-                let sym = if let Expr::Symbol(sym) = &**car {
+            Expr::Pair(..) | Expr::LazyPair(..) => {
+                let (car, cdr) = engine.split_cons(arg.clone()).unwrap();
+                let sym = if let Expr::Symbol(sym) = &*car {
                     *sym
                 } else {
                     return Err(bad_arg_type(
@@ -56,7 +57,7 @@ fn lambda_macro_inner(
                         "list of symbols or (symbol default)s",
                     ));
                 };
-                let default = match Engine::sexp_to_list(cdr.to_owned()) {
+                let default = match engine.sexp_to_list(cdr.to_owned()) {
                     Some(it) => it,
                     None => {
                         return Err(bad_arg_type(
@@ -109,7 +110,7 @@ pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
 
     let mut fnargs = args[1..args.len() - 1].to_owned();
     if let Some(trail) = args.last() {
-        let trail = match Engine::sexp_to_list(trail.to_owned()) {
+        let trail = match engine.sexp_to_list(trail.to_owned()) {
             Some(it) => it,
             None => {
                 return Err(bad_arg_type(

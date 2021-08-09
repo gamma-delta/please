@@ -30,6 +30,7 @@ pub enum Expr {
     Symbol(Symbol),
     /// Pointer to two elements.
     Pair(Gc<Expr>, Gc<Expr>),
+    LazyPair(LazyExprCell, LazyExprCell, Gc<GcCell<Namespace>>),
     /// Lack of a value
     Nil,
 
@@ -128,8 +129,8 @@ impl Engine {
 
     /// Write an expression to a string. Reading this string
     /// should yield the same as the original (with some caveats for procedures &c).
-    pub fn write_expr(&self, expr: Gc<Expr>) -> String {
-        fn recur(engine: &Engine, w: &mut impl Write, expr: Gc<Expr>) -> Result<(), fmt::Error> {
+    pub fn write_expr(&mut self, expr: Gc<Expr>) -> String {
+        fn recur(engine: &mut Engine, w: &mut impl Write, expr: Gc<Expr>) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
                 Expr::Float(f) => write!(w, "{}", f),
@@ -140,9 +141,10 @@ impl Engine {
                         write!(w, "<unknown #{}>", sym)
                     }
                 }
-                Expr::Pair(car, cdr) => {
+                Expr::Pair(..) | Expr::LazyPair(..) => {
+                    let (car, cdr) = engine.split_cons(expr).unwrap();
                     fn write_list<W: Write>(
-                        engine: &Engine,
+                        engine: &mut Engine,
                         w: &mut W,
                         car: Gc<Expr>,
                         cdr: Gc<Expr>,
@@ -152,7 +154,8 @@ impl Engine {
                             // Proper list's end, do nothing
                             Expr::Nil => Ok(()),
                             // Proper list, leave space for the next thing.
-                            Expr::Pair(cdar, cddr) => {
+                            Expr::Pair(..) | Expr::LazyPair(..) => {
+                                let (cdar, cddr) = engine.split_cons(cdr).unwrap();
                                 write!(w, " ")?;
                                 write_list(engine, w, cdar.to_owned(), cddr.to_owned())
                             }
@@ -248,8 +251,8 @@ impl Engine {
 
     /// Print the expression to a string
     /// in a nice and human-readable way.
-    pub fn print_expr(&self, expr: Gc<Expr>) -> String {
-        fn recur<W: Write>(engine: &Engine, w: &mut W, expr: Gc<Expr>) -> Result<(), fmt::Error> {
+    pub fn print_expr(&mut self, expr: Gc<Expr>) -> String {
+        fn recur<W: Write>(engine: &mut Engine, w: &mut W, expr: Gc<Expr>) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
                 Expr::Float(f) => write!(w, "{}", f),
@@ -263,9 +266,10 @@ impl Engine {
                         write!(w, "<unknown #{}>", sym)
                     }
                 }
-                Expr::Pair(car, cdr) => {
+                Expr::Pair(..) | Expr::LazyPair(..) => {
+                    let (car, cdr) = engine.split_cons(expr).unwrap();
                     fn write_list<W: Write>(
-                        engine: &Engine,
+                        engine: &mut Engine,
                         w: &mut W,
                         car: Gc<Expr>,
                         cdr: Gc<Expr>,
@@ -275,7 +279,8 @@ impl Engine {
                             // Proper list's end, do nothing
                             Expr::Nil => Ok(()),
                             // Proper list, leave space for the next thing.
-                            Expr::Pair(cdar, cddr) => {
+                            Expr::Pair(..) | Expr::LazyPair(..) => {
+                                let (cdar, cddr) = engine.split_cons(cdr).unwrap();
                                 write!(w, " ")?;
                                 write_list(engine, w, cdar.to_owned(), cddr.to_owned())
                             }
@@ -357,8 +362,8 @@ impl Engine {
     /// If the given index or any cdr doesn't point to a `Pair`
     /// or `Null` (ie it's not a proper list)
     /// then `None` is returned.
-    pub fn sexp_to_list(expr: Gc<Expr>) -> Option<Vec<Gc<Expr>>> {
-        let (list, end) = Self::expr_to_improper_list(expr);
+    pub fn sexp_to_list(&mut self, expr: Gc<Expr>) -> Option<Vec<Gc<Expr>>> {
+        let (list, end) = self.expr_to_improper_list(expr);
         if let Expr::Nil = &*end {
             Some(list)
         } else {
@@ -366,21 +371,45 @@ impl Engine {
         }
     }
 
+    /// Eval a LazyExprCell.
+    /// Technically this should return EvalResult but thog don't caare
+    /// TODO make this and a fuckbunch of other things return EvalResult??
+    pub fn eval_cell(&mut self, env: &Gc<GcCell<Namespace>>, expr: &LazyExprCell) -> Gc<Expr> {
+        let (expr, done) = &mut *expr.borrow_mut();
+        if *done {
+            expr.clone()
+        } else {
+            // TODO do this sanely
+            let evaluated = self.eval_inner(env.clone(), expr.clone()).unwrap_or_else(|e| panic!("{:?}", e));
+            *expr = evaluated.clone(); *done = true;
+            evaluated
+        }
+    }
+
+    /// Split a cons pair into head and tail
+    pub fn split_cons(&mut self, expr: Gc<Expr>) -> Option<(Gc<Expr>, Gc<Expr>)> {
+        let val = match &*expr {
+            Expr::Pair(car, cdr) => {
+                (car.to_owned(), cdr.to_owned())
+            },
+            Expr::LazyPair(car, cdr, ctx) => {
+                (self.eval_cell(ctx, car), self.eval_cell(ctx, cdr))
+            },
+            _ => None?
+        };
+        Some(val)
+    }
+
+
     /// Turn an improper list into the list leading up to the last element,
     /// and the last element. Proper lists will have the last element be `()`.
-    pub fn expr_to_improper_list(expr: Gc<Expr>) -> (Vec<Gc<Expr>>, Gc<Expr>) {
-        fn recur(expr: Gc<Expr>, wip: &mut Vec<Gc<Expr>>) -> Gc<Expr> {
-            match &*expr {
-                Expr::Pair(car, cdr) => {
-                    wip.push(car.to_owned());
-                    recur(cdr.to_owned(), wip)
-                }
-                _ => expr,
-            }
+    pub fn expr_to_improper_list(&mut self, mut expr: Gc<Expr>) -> (Vec<Gc<Expr>>, Gc<Expr>) {
+        let mut out = vec![];
+        while let Some((car, cdr)) = self.split_cons(expr.clone()) {
+            out.push(car);
+            expr = cdr;
         }
-        let mut out = Vec::new();
-        let last = recur(expr, &mut out);
-        (out, last)
+        (out, expr)
     }
 
     /// Create a cons list from the given list, and return its head.
@@ -494,3 +523,6 @@ pub type Value = Gc<Expr>;
 
 /// Result of any calculation that may throw an exception
 pub type EvalResult = Result<Value, Exception>;
+
+//#[derive(Debug, Trace, Finalize)]
+pub type LazyExprCell = GcCell<(Gc<Expr>, bool)>;

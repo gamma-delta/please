@@ -40,6 +40,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("let", let_ as _),
         ("and", and as _),
         ("or", or as _),
+        ("lazy-cons", lazy_cons as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {

@@ -26,11 +26,13 @@ pub fn quasiquote(
 fn quasi_helper(engine: &mut Engine, env: Gc<GcCell<Namespace>>, arg: Gc<Expr>) -> EvalResult {
     let unquote = engine.find_symbol("unquote").unwrap();
     match &*arg {
-        Expr::Pair(car, cdr) => {
-            if matches!(&**car, Expr::Symbol(sym) if *sym == unquote) {
-                let actual_cdr = match &**cdr {
-                    Expr::Pair(car, cdr) => {
-                        if let Expr::Nil = &**cdr {
+        Expr::Pair(..) | Expr::LazyPair(..) => {
+            let (car, cdr) = engine.split_cons(arg.clone()).unwrap();
+            if matches!(&*car, Expr::Symbol(sym) if *sym == unquote) {
+                let actual_cdr = match &*cdr {
+                    Expr::Pair(..) | Expr::LazyPair(..) => {
+                        let (car, cdr) = engine.split_cons(cdr.clone()).unwrap();
+                        if let Expr::Nil = &*cdr {
                             car.to_owned()
                         } else {
                             return Err(bad_arg_type(engine, cdr.to_owned(), 1, "1-list"));
