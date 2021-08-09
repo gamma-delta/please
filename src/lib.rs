@@ -129,7 +129,8 @@ impl Engine {
 
     /// Write an expression to a string. Reading this string
     /// should yield the same as the original (with some caveats for procedures &c).
-    pub fn write_expr(&mut self, expr: Gc<Expr>) -> String {
+    pub fn write_expr(&mut self, expr: Gc<Expr>) -> Result<String, Exception> {
+        self.reify(&expr)?;
         fn recur(engine: &mut Engine, w: &mut impl Write, expr: Gc<Expr>) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
@@ -246,12 +247,13 @@ impl Engine {
         }
         let mut writer = String::new();
         recur(self, &mut writer, expr).unwrap();
-        writer
+        Ok(writer)
     }
 
     /// Print the expression to a string
     /// in a nice and human-readable way.
-    pub fn print_expr(&mut self, expr: Gc<Expr>) -> String {
+    pub fn print_expr(&mut self, expr: Gc<Expr>) -> Result<String, Exception> {
+        self.reify(&expr)?;
         fn recur<W: Write>(engine: &mut Engine, w: &mut W, expr: Gc<Expr>) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
@@ -320,7 +322,7 @@ impl Engine {
         }
         let mut writer = String::new();
         recur(self, &mut writer, expr).unwrap();
-        writer
+        Ok(writer)
     }
 
     /// Make or get the symbol handle of the symbol represented by the given string.
@@ -360,56 +362,85 @@ impl Engine {
 
     /// Turn a cons list into a vector of indices.
     /// If the given index or any cdr doesn't point to a `Pair`
-    /// or `Null` (ie it's not a proper list)
+    /// or `Null` (ie it's not a proper list)u
     /// then `None` is returned.
-    pub fn sexp_to_list(&mut self, expr: Gc<Expr>) -> Option<Vec<Gc<Expr>>> {
-        let (list, end) = self.expr_to_improper_list(expr);
-        if let Expr::Nil = &*end {
+    pub fn sexp_to_list(&mut self, expr: Gc<Expr>) -> Result<Option<Vec<Gc<Expr>>>, Exception> {
+        let (list, end) = self.expr_to_improper_list(expr)?;
+        Ok(if let Expr::Nil = &*end {
             Some(list)
         } else {
             None
-        }
+        })
     }
 
     /// Eval a LazyExprCell.
-    /// Technically this should return EvalResult but thog don't caare
-    /// TODO make this and a fuckbunch of other things return EvalResult??
-    pub fn eval_cell(&mut self, env: &Gc<GcCell<Namespace>>, expr: &LazyExprCell) -> Gc<Expr> {
+    pub fn eval_cell(&mut self, env: &Gc<GcCell<Namespace>>, expr: &LazyExprCell) -> EvalResult {
         let (expr, done) = &mut *expr.borrow_mut();
         if *done {
-            expr.clone()
+            Ok(expr.clone())
         } else {
-            // TODO do this sanely
-            let evaluated = self.eval_inner(env.clone(), expr.clone()).unwrap_or_else(|e| panic!("{:?}", e));
-            *expr = evaluated.clone(); *done = true;
+            *done = true;
+            let evaluated = self.eval_inner(env.clone(), expr.clone());
+            *expr = match &evaluated {
+                Ok(val) => val.clone(),
+                Err(_) => Gc::new(Expr::Nil),
+            };
             evaluated
         }
     }
 
     /// Split a cons pair into head and tail
-    pub fn split_cons(&mut self, expr: Gc<Expr>) -> Option<(Gc<Expr>, Gc<Expr>)> {
+    pub fn car(&mut self, expr: Gc<Expr>) -> EvalResult {
+        match &*expr {
+            Expr::Pair(car, _) => Ok(car.to_owned()),
+            Expr::LazyPair(car, _, ctx) => self.eval_cell(ctx, car),
+            _ => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
+        }
+    }
+    pub fn cdr(&mut self, expr: Gc<Expr>) -> EvalResult {
+        match &*expr {
+            Expr::Pair(_, cdr) => Ok(cdr.to_owned()),
+            Expr::LazyPair(_, cdr, ctx) => self.eval_cell(ctx, cdr),
+            _ => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
+        }
+    }
+    pub fn split_cons_verb(&mut self, expr: Gc<Expr>) -> Result<Option<(Gc<Expr>, Gc<Expr>)>, Exception> {
         let val = match &*expr {
             Expr::Pair(car, cdr) => {
                 (car.to_owned(), cdr.to_owned())
             },
             Expr::LazyPair(car, cdr, ctx) => {
-                (self.eval_cell(ctx, car), self.eval_cell(ctx, cdr))
+                (self.eval_cell(ctx, car)?, self.eval_cell(ctx, cdr)?)
             },
-            _ => None?
+            _ => return Ok(None),
         };
-        Some(val)
+        Ok(Some(val))
+    }
+    pub fn split_cons(&mut self, expr: Gc<Expr>) -> Result<(Gc<Expr>, Gc<Expr>), Exception> {
+        match self.split_cons_verb(expr.clone())? {
+            Some(pair) => Ok(pair),
+            None => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair"))?,
+        }
+    }
+    /// Reify an expr by evaluating all contained LazyExprCells.
+    pub fn reify(&mut self, expr: &Gc<Expr>) -> Result<(), Exception> {
+        if let Some((car, cdr)) = &self.split_cons_verb(expr.clone())? {
+            self.reify(car)?;
+            self.reify(cdr)?;
+        }
+        Ok(())
     }
 
 
     /// Turn an improper list into the list leading up to the last element,
     /// and the last element. Proper lists will have the last element be `()`.
-    pub fn expr_to_improper_list(&mut self, mut expr: Gc<Expr>) -> (Vec<Gc<Expr>>, Gc<Expr>) {
+    pub fn expr_to_improper_list(&mut self, mut expr: Gc<Expr>) -> Result<(Vec<Gc<Expr>>, Gc<Expr>), Exception> {
         let mut out = vec![];
-        while let Some((car, cdr)) = self.split_cons(expr.clone()) {
+        while let Some((car, cdr)) = self.split_cons_verb(expr.clone())? {
             out.push(car);
             expr = cdr;
         }
-        (out, expr)
+        Ok((out, expr))
     }
 
     /// Create a cons list from the given list, and return its head.
@@ -505,7 +536,7 @@ pub struct Exception {
 }
 
 impl Exception {
-    fn into_expr(self, engine: &mut Engine) -> Value {
+    pub fn into_expr(self, engine: &mut Engine) -> Value {
         // i could not tell you why i need to do this
         let Exception { id, info, data } = self;
         Engine::list_to_sexp(&[

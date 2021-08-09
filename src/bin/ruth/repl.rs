@@ -17,7 +17,7 @@ pub fn repl(mut engine: Engine) -> termwiz::Result<()> {
     loop {
         let ps = if in_parens { ps2 } else { ps1 };
         let ps = engine.eval(engine.thtdlib(), Gc::new(Expr::Symbol(ps)));
-        let ps = engine.print_expr(ps);
+        let ps = engine.print_expr(ps).unwrap();
         editor.set_prompt(&ps);
 
         let line = editor.read_line(&mut host)?.unwrap_or_default();
@@ -49,7 +49,14 @@ pub fn repl(mut engine: Engine) -> termwiz::Result<()> {
         match expr {
             Ok(expr) => {
                 let result = engine.eval(engine.thtdlib(), Gc::new(expr));
-                println!("{}\n", engine.write_expr(result));
+                let string = match engine.write_expr(result) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        let expr = e.into_expr(&mut engine);
+                        engine.write_expr(expr).unwrap()
+                    }
+                };
+                println!("{}\n", string);
             }
             Err(ono) => {
                 ono.report()

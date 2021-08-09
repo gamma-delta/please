@@ -27,11 +27,11 @@ fn quasi_helper(engine: &mut Engine, env: Gc<GcCell<Namespace>>, arg: Gc<Expr>) 
     let unquote = engine.find_symbol("unquote").unwrap();
     match &*arg {
         Expr::Pair(..) | Expr::LazyPair(..) => {
-            let (car, cdr) = engine.split_cons(arg.clone()).unwrap();
+            let (car, cdr) = engine.split_cons(arg.clone())?;
             if matches!(&*car, Expr::Symbol(sym) if *sym == unquote) {
                 let actual_cdr = match &*cdr {
                     Expr::Pair(..) | Expr::LazyPair(..) => {
-                        let (car, cdr) = engine.split_cons(cdr.clone()).unwrap();
+                        let (car, cdr) = engine.split_cons(cdr.clone())?;
                         if let Expr::Nil = &*cdr {
                             car.to_owned()
                         } else {

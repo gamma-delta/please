@@ -5,7 +5,7 @@ use super::*;
 pub fn to_string(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     let mut out = String::new();
     for expr in args {
-        out.push_str(&engine.print_expr(expr.to_owned()));
+        out.push_str(&engine.print_expr(expr.to_owned())?);
     }
     Ok(Gc::new(Expr::String(out)))
 }
@@ -66,7 +66,7 @@ pub fn prn(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
         true
     };
 
-    let out = engine.print_expr(args[0].clone());
+    let out = engine.print_expr(args[0].clone())?;
 
     if newline {
         println!("{}", out);

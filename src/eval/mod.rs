@@ -1,9 +1,9 @@
 use crate::{Engine, EvalResult, Exception, Expr, Namespace, Value};
 
-mod thtd;
+pub mod thtd;
 use gc::{Gc, GcCell};
 use itertools::{EitherOrBoth, Itertools};
-pub use thtd::add_thtandard_library;
+pub use thtd::{add_thtandard_library, bad_arg_type};
 
 /// Do we use tail recursion for a special form?
 pub enum TailRec {
@@ -51,7 +51,7 @@ impl Engine {
             // Lookup the symbol
             &Expr::Symbol(id) => {
                 let idx = env.borrow().lookup(id);
-                let msg = self.write_expr(expr.clone());
+                let msg = self.write_expr(expr.clone())?;
                 match idx {
                     Some(it) => Ok(TailRec::Exit(it)),
                     None => Err(self.make_err(
@@ -65,10 +65,10 @@ impl Engine {
                 }
             }
             Expr::Pair(..) | Expr::LazyPair(..) => {
-                let (car, cdr) = self.split_cons(expr.clone()).unwrap();
+                let (car, cdr) = self.split_cons(expr.clone())?;
                 let car = self.eval_inner(env.clone(), car)?;
 
-                let args = match self.sexp_to_list(cdr.clone()) {
+                let args = match self.sexp_to_list(cdr.clone())? {
                     Some(it) => it,
                     None => {
                         return Err(self.make_err(

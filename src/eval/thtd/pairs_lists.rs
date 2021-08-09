@@ -17,19 +17,11 @@ pub fn lazy_cons(engine: &mut Engine, ns: Gc<GcCell<Namespace>>, args: &[Gc<Expr
 pub fn car(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     check_argc(engine, args, 1, 1)?;
 
-    let (car, _) = match engine.split_cons(args[0].clone()) {
-        Some((car, cdr)) => (car, cdr),
-        _ => return Err(bad_arg_type(engine, args[0].clone(), 0, "pair")),
-    };
-    Ok(car.clone())
+    engine.car(args[0].to_owned())
 }
 
 pub fn cdr(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     check_argc(engine, args, 1, 1)?;
 
-    let (_, cdr) = match engine.split_cons(args[0].clone()) {
-        Some((car, cdr)) => (car, cdr),
-        _ => return Err(bad_arg_type(engine, args[0].clone(), 0, "pair")),
-    };
-    Ok(cdr.clone())
+    engine.cdr(args[0].to_owned())
 }
