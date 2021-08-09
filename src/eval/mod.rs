@@ -116,31 +116,34 @@ impl Engine {
                         if *variadic {
                             thtd::check_min_argc(self, &args_passed, minimum_argc - 1)?;
                         } else {
-                            thtd::check_argc(self, &args_passed, minimum_argc, args_passed.len())?;
+                            thtd::check_argc(self, &args_passed, minimum_argc, arg_names.len())?;
                         }
 
-                        for (idx, arg_default) in
-                            arg_names.iter().zip_longest(&args_passed).enumerate()
-                        {
-                            let (symbol, val) = match arg_default {
-                                // We have a value to fill in the rhs, ignore default
-                                EitherOrBoth::Both((sym, _default), val) => (*sym, val.to_owned()),
-                                // We don't have any more args passed, but we do have a default
-                                EitherOrBoth::Left((sym, Some(default))) => {
-                                    (*sym, default.to_owned())
-                                }
+                        let (arg_names, variadic) = if *variadic {
+                            (&arg_names[..arg_names.len() - 1], Some(arg_names.last().unwrap().0))
+                        } else {
+                            (&arg_names[..], None)
+                        };
+
+                        let mut args = &args_passed[..];
+                        for (name, default) in arg_names {
+                            let val = match (args, default) {
+                                // Fill next arg
+                                ([first, rest @ ..], _) => {
+                                    args = rest;
+                                    first
+                                },
+                                // Use a def'n'ed default
+                                ([], Some(v)) => v,
                                 // We passed too many arguments or too few
                                 // should have already checked for this
                                 _ => unreachable!(),
                             };
-                            if *variadic && idx == arg_names.len() - 1 {
-                                // This is the trail arg
-                                let trail = Engine::list_to_sexp(&args_passed[idx..]);
-                                arg_env.insert(symbol, trail);
-                                break; // Break to prevent the next iteration from "running out" of args
-                            } else {
-                                arg_env.insert(symbol, val);
-                            }
+                            arg_env.insert(*name, val.clone());
+                        }
+                        if let Some(name) = variadic {
+                            let trail = Engine::list_to_sexp(args);
+                            arg_env.insert(name, trail);
                         }
 
                         let arg_env = Gc::new(GcCell::new(arg_env));
