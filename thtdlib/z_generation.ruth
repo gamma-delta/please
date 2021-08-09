@@ -16,15 +16,18 @@
     ; all the ad lists
     [ads (for (\ (code) (picker-gen code "a" "d")) (range gen-count))]
     [ca/drs (for (\ (code) (picker-gen code car cdr)) (range gen-count))])
-    ; fold for the lockstepping
-    (map 
-      (\ (ad ca/dr) 
-        (prn (string (string ad) (string ca/dr))))
-      ads ca/drs)))
+    ; to eval all the defines in the top level, create a "list" over them
+    `(identity
+      ,(map 
+        (\ (ad ca/dr) 
+          (prn (string ad " " ca/dr))
+          (let ([name (eval `(string "c" (unquote-splicing ad) "r"))])
+            `(define ,(string->symbol name) (lambda-> . ,ca/dr))))
+        ads ca/drs))))
 
 (define-macro (make-car-family max) 
   (let ([max (eval max)])
     (if (> max 2)
-      `(do (car-family ,max))
+      (do (car-family max) (make-car-family (sub1 max)))
       ())))
 (make-car-family 3)
