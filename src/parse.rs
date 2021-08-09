@@ -1,7 +1,8 @@
 use std::{fmt::Debug, num::ParseIntError, ops::Range};
 
-use ariadne::{CharSet, Label, Report, ReportKind};
+use ariadne::{CharSet, Label, Report, ReportKind, Source};
 use gc::Gc;
+use itertools::Either;
 use thiserror::Error;
 
 use crate::{Engine, Expr, Symbol};
@@ -55,6 +56,14 @@ impl ExprParseError {
                         opener, closer
                     )))
                     .with_note(format!("try putting a {:?} at the end", closer));
+            }
+            ExprParseErrorInfo::UnexpectedCloseParen { closer } => {
+                report = report
+                    .with_label(Label::new(all).with_message(format!(
+                        "there was no opening paren for this {:?} to close",
+                        closer
+                    )))
+                    .with_note(format!("try removing the {:?}", closer));
             }
             ExprParseErrorInfo::WrongCloseParen {
                 opener,
@@ -164,6 +173,8 @@ pub enum ExprParseErrorInfo {
     /// This error should span all the way from the opening paren to the closer
     #[error("expected a closing {closer:?} to this sexpr`")]
     ExpectedCloseParen { opener: char, closer: char },
+    #[error("did not expect a closing {closer:?} here")]
+    UnexpectedCloseParen { closer: char },
     #[error("wrong closing paren to close {opener:?}")]
     WrongCloseParen {
         opener: char,
@@ -199,6 +210,11 @@ pub fn read_many(
     source: String,
     engine: &mut Engine,
 ) -> Result<Vec<Expr>, ExprParseError> {
+    // ariadne doesn't like carriage returns, so we strip them
+    // until zesterer gets their act together
+    let whole = whole.replace('\r', "");
+    let whole = whole.as_str();
+
     let mut out = Vec::new();
 
     let mut s = whole;
@@ -338,6 +354,12 @@ fn try_read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Optio
         // Do symbols last so we need to specially omit as little as possible
         let (id, rest) = symbol?;
         Ok((Some(Expr::Symbol(id)), rest))
+    } else if s.starts_with(is_closer) {
+        let problem = s.chars().next().unwrap();
+        Err(ExprParseErrorLimited {
+            data: ExprParseErrorInfo::UnexpectedCloseParen { closer: problem },
+            offender: &s[..problem.len_utf8()],
+        })
     } else if s.contains(|c: char| !c.is_whitespace()) {
         Err(ExprParseErrorLimited {
             data: ExprParseErrorInfo::IndeterminableToken,
@@ -543,36 +565,60 @@ fn try_read_string<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a,
         // see which index is first, use Either to figure which to consume to.
         let mut accumulated = String::new();
         loop {
-            if let Some(esc_pos) = s.find('\\') {
-                // add 1 to skip the backslash
-                let rest = &s[esc_pos + 1..];
-                let (esc, rest) = match escape(rest) {
-                    Ok(it) => it,
-                    Err(ono) => {
-                        let (badpos, _) = string_pos(whole, rest);
-                        return Some(Err(ExprParseErrorLimited {
-                            data: ExprParseErrorInfo::InvalidEscape(badpos, ono),
-                            offender: &whole[..=badpos],
-                        }));
+            let bs_pos = s.find('\\');
+            let quote_pos = s.find('"');
+            // See which index is first
+            // Left = backslash, Right = quote
+            let point_of_interest = match (bs_pos, quote_pos) {
+                (Some(bs), Some(quote)) => {
+                    // Worry about whichever is first
+                    if bs < quote {
+                        Either::Left(bs)
+                    } else {
+                        Either::Right(quote)
                     }
-                };
-                accumulated.push_str(&s[..esc_pos]);
-                accumulated.push_str(&esc);
-                s = rest;
-            } else if let Some(quote_pos) = s.find('"') {
-                accumulated.push_str(&s[..quote_pos]);
-                return Some(Ok((accumulated, &s[quote_pos + 1..])));
-            } else {
-                // bruh
-                let remove_newline = if let Some(idx) = whole.find(&['\n', '\r'][..]) {
-                    &whole[..idx]
-                } else {
-                    whole
-                };
-                return Some(Err(ExprParseErrorLimited {
-                    data: ExprParseErrorInfo::ExpectedCloseQuote,
-                    offender: remove_newline,
-                }));
+                }
+                (None, Some(quote)) => {
+                    // There's no backslashes in the entire rest of source so use the quote
+                    Either::Right(quote)
+                }
+                // There's no quote left so bail!
+                _ => {
+                    // fix bug with ariadne
+                    let remove_newline = if let Some(idx) = whole.find(&['\n', '\r'][..]) {
+                        &whole[..idx]
+                    } else {
+                        whole
+                    };
+                    return Some(Err(ExprParseErrorLimited {
+                        data: ExprParseErrorInfo::ExpectedCloseQuote,
+                        offender: remove_newline,
+                    }));
+                }
+            };
+
+            match point_of_interest {
+                Either::Left(esc_pos) => {
+                    // add 1 to skip the backslash
+                    let rest = &s[esc_pos + 1..];
+                    let (esc, rest) = match escape(rest) {
+                        Ok(it) => it,
+                        Err(ono) => {
+                            let (badpos, _) = string_pos(whole, rest);
+                            return Some(Err(ExprParseErrorLimited {
+                                data: ExprParseErrorInfo::InvalidEscape(badpos, ono),
+                                offender: &whole[..=badpos],
+                            }));
+                        }
+                    };
+                    accumulated.push_str(&s[..esc_pos]);
+                    accumulated.push_str(&esc);
+                    s = rest;
+                }
+                Either::Right(quote_pos) => {
+                    accumulated.push_str(&s[..quote_pos]);
+                    return Some(Ok((accumulated, &s[quote_pos + 1..])));
+                }
             }
         }
     } else {
@@ -673,4 +719,26 @@ fn test_string_pos() {
 
     let bounds = string_pos(s, s);
     assert_eq!(bounds, (0, s.len()));
+}
+
+#[test]
+fn ariadne_borked() {
+    let test_str = r#"(my 
+(complex 
+    lisp 123
+    with 
+    (a bad token here))!
+(oh the horror)"#;
+
+    let lf = test_str.replace("\r\n", "\n");
+    let crlf = lf.replace("\n", "\r\n");
+
+    for (test_name, source) in [("lf", lf), ("crlf", crlf)] {
+        let bad_pos = source.as_str().find('!').unwrap();
+        println!("{}:", test_name);
+        let error = Report::build(ReportKind::Error, (), bad_pos)
+            .with_label(Label::new(bad_pos..bad_pos + 1).with_message("this token is invalid"))
+            .finish();
+        error.eprint(Source::from(source)).unwrap();
+    }
 }

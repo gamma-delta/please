@@ -101,6 +101,8 @@ fn lambda_macro_inner(
         body,
         env: if is_lambda { Some(env) } else { None }, // close over the calling context
         variadic: vararg_name.is_some(),
+        // Assume this is a lambda with no name
+        name: None,
     };
     Ok(TailRec::Exit(Gc::new(proc)))
 }

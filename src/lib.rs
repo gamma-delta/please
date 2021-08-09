@@ -2,6 +2,7 @@ mod eval;
 mod parse;
 
 use eval::TailRec;
+use itertools::Itertools;
 pub use parse::{ExprParseError, ExprParseErrorInfo};
 
 use std::{
@@ -55,6 +56,8 @@ pub enum Expr {
         /// This is None iff the body's a macro
         env: Option<Gc<GcCell<Namespace>>>,
         variadic: bool,
+        /// Possible name of the `define` that created this.
+        name: Option<Symbol>,
     },
 }
 
@@ -120,7 +123,8 @@ impl Engine {
     /// Read and eval everything in the source file, returning
     /// the item in tail position (or `()` if there isn't anything).
     pub fn read_eval(&mut self, s: &str, source_name: String) -> Result<Gc<Expr>, ExprParseError> {
-        Ok(parse::read_many(s, source_name, self)?
+        Ok(self
+            .read_many(s, source_name)?
             .into_iter()
             .map(|e| self.eval(self.thtdlib(), Gc::new(e)))
             .last()
@@ -131,7 +135,11 @@ impl Engine {
     /// should yield the same as the original (with some caveats for procedures &c).
     pub fn write_expr(&mut self, expr: Gc<Expr>) -> Result<String, Exception> {
         self.reify(&expr)?;
-        fn recur(engine: &mut Engine, w: &mut impl Write, expr: Gc<Expr>) -> Result<(), fmt::Error> {
+        fn recur(
+            engine: &mut Engine,
+            w: &mut impl Write,
+            expr: Gc<Expr>,
+        ) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
                 Expr::Float(f) => write!(w, "{}", f),
@@ -254,7 +262,11 @@ impl Engine {
     /// in a nice and human-readable way.
     pub fn print_expr(&mut self, expr: Gc<Expr>) -> Result<String, Exception> {
         self.reify(&expr)?;
-        fn recur<W: Write>(engine: &mut Engine, w: &mut W, expr: Gc<Expr>) -> Result<(), fmt::Error> {
+        fn recur<W: Write>(
+            engine: &mut Engine,
+            w: &mut W,
+            expr: Gc<Expr>,
+        ) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
                 Expr::Float(f) => write!(w, "{}", f),
@@ -404,14 +416,13 @@ impl Engine {
             _ => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
         }
     }
-    pub fn split_cons_verb(&mut self, expr: Gc<Expr>) -> Result<Option<(Gc<Expr>, Gc<Expr>)>, Exception> {
+    pub fn split_cons_verb(
+        &mut self,
+        expr: Gc<Expr>,
+    ) -> Result<Option<(Gc<Expr>, Gc<Expr>)>, Exception> {
         let val = match &*expr {
-            Expr::Pair(car, cdr) => {
-                (car.to_owned(), cdr.to_owned())
-            },
-            Expr::LazyPair(car, cdr, ctx) => {
-                (self.eval_cell(ctx, car)?, self.eval_cell(ctx, cdr)?)
-            },
+            Expr::Pair(car, cdr) => (car.to_owned(), cdr.to_owned()),
+            Expr::LazyPair(car, cdr, ctx) => (self.eval_cell(ctx, car)?, self.eval_cell(ctx, cdr)?),
             _ => return Ok(None),
         };
         Ok(Some(val))
@@ -431,10 +442,12 @@ impl Engine {
         Ok(())
     }
 
-
     /// Turn an improper list into the list leading up to the last element,
     /// and the last element. Proper lists will have the last element be `()`.
-    pub fn expr_to_improper_list(&mut self, mut expr: Gc<Expr>) -> Result<(Vec<Gc<Expr>>, Gc<Expr>), Exception> {
+    pub fn expr_to_improper_list(
+        &mut self,
+        mut expr: Gc<Expr>,
+    ) -> Result<(Vec<Gc<Expr>>, Gc<Expr>), Exception> {
         let mut out = vec![];
         while let Some((car, cdr)) = self.split_cons_verb(expr.clone())? {
             out.push(car);
@@ -481,6 +494,8 @@ impl Engine {
 
     /// Make an error, a cons list `'(! "msg")` or `'(! "msg" userdata)`.
     /// As a helper, if `userdata` is None, the userdata becomes `()`.
+    ///
+    /// This is given a trace of `[]` to start; `eval_inner` pushes sources to it as needed.
     pub fn make_err(&mut self, name: &str, msg: String, userdata: Option<Gc<Expr>>) -> Exception {
         let sym = self.intern_symbol(name);
 
@@ -488,6 +503,7 @@ impl Engine {
             id: sym,
             info: msg,
             data: userdata.unwrap_or_else(|| Gc::new(Expr::Nil)),
+            call_trace: EvalSource { trace: Vec::new() },
         }
     }
 
@@ -533,17 +549,32 @@ pub struct Exception {
     pub info: String,
     /// Additional associated data
     pub data: Value,
+    /// Call stack
+    pub call_trace: EvalSource,
 }
 
 impl Exception {
     pub fn into_expr(self, engine: &mut Engine) -> Value {
-        // i could not tell you why i need to do this
-        let Exception { id, info, data } = self;
+        let symbols = self
+            .call_trace
+            .trace
+            .into_iter()
+            .map(|s| {
+                Gc::new(if let Some(s) = s {
+                    Expr::Symbol(s)
+                } else {
+                    Expr::Nil
+                })
+            })
+            .collect_vec();
+        let trace = Engine::list_to_sexp(&symbols);
+
         Engine::list_to_sexp(&[
             Gc::new(Expr::Symbol(engine.intern_symbol("!"))),
-            Gc::new(Expr::Symbol(id)),
-            Gc::new(Expr::String(info)),
-            data,
+            Gc::new(Expr::Symbol(self.id)),
+            Gc::new(Expr::String(self.info)),
+            trace,
+            self.data,
         ])
     }
 }
@@ -557,3 +588,15 @@ pub type EvalResult = Result<Value, Exception>;
 
 //#[derive(Debug, Trace, Finalize)]
 pub type LazyExprCell = GcCell<(Gc<Expr>, bool)>;
+
+/// Where was an expr evaled from?
+#[derive(Debug)]
+pub struct EvalSource {
+    /// An empty vec means the top level.
+    /// A `[H... | Entry]` means it was called from the function/macro with the given name.
+    /// (Lambdas/inline macros are None).
+    ///
+    /// In other words, for each level down in the call stack another thing is pushed to the trace,
+    /// and the deepest call is to the left.
+    pub trace: Vec<Option<Symbol>>,
+}

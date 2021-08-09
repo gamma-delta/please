@@ -56,10 +56,7 @@ impl Engine {
                     Some(it) => Ok(TailRec::Exit(it)),
                     None => Err(self.make_err(
                         "application/undefined",
-                        format!(
-                            "application: '{} is undefined",
-                            msg
-                        ),
+                        format!("application: '{} is undefined", msg),
                         Some(expr),
                     )),
                 }
@@ -79,104 +76,129 @@ impl Engine {
                     }
                 };
                 match &*car {
-                    &Expr::SpecialForm { func, .. } => func(self, env, &args),
-                    &Expr::NativeProcedure { func, .. } => {
+                    &Expr::SpecialForm { func, name } => func(self, env, &args).map_err(|mut e| {
+                        e.call_trace.trace.push(Some(name));
+                        e
+                    }),
+                    &Expr::NativeProcedure { func, name } => {
                         let evaled_args = args
                             .into_iter()
                             .map(|expr| self.eval_inner(env.clone(), expr))
                             .collect::<Result<Vec<_>, _>>()?;
 
-                        func(self, env, &evaled_args).map(TailRec::Exit)
+                        func(self, env, &evaled_args)
+                            .map(TailRec::Exit)
+                            .map_err(|mut e| {
+                                e.call_trace.trace.push(Some(name));
+                                e
+                            })
                     }
                     Expr::Procedure {
                         args: arg_names,
                         body,
                         env: closed_env,
                         variadic,
+                        name,
                     } => {
-                        // Fill the arg slots via a new namespace
-                        let mut arg_env = Namespace::new(
-                            closed_env.as_ref().cloned().unwrap_or_else(|| env.clone()),
-                        );
+                        let trynt = || {
+                            // Fill the arg slots via a new namespace
+                            let mut arg_env = Namespace::new(
+                                closed_env.as_ref().cloned().unwrap_or_else(|| env.clone()),
+                            );
 
-                        // Eval the args in the parent context
-                        let args_passed = if closed_env.is_some() {
-                            args
-                                // eval args for a function call
-                                .into_iter()
-                                .map(|arg| self.eval_inner(env.clone(), arg))
-                                .collect::<Result<Vec<_>, _>>()?
-                        } else {
-                            // let them be for a macro
-                            args
-                        };
-
-                        let minimum_argc = arg_names
-                            .iter()
-                            .filter(|(_, default)| default.is_none())
-                            .count();
-                        if *variadic {
-                            thtd::check_min_argc(self, &args_passed, minimum_argc - 1)?;
-                        } else {
-                            thtd::check_argc(self, &args_passed, minimum_argc, arg_names.len())?;
-                        }
-
-                        let (arg_names, variadic) = if *variadic {
-                            (&arg_names[..arg_names.len() - 1], Some(arg_names.last().unwrap().0))
-                        } else {
-                            (&arg_names[..], None)
-                        };
-
-                        let mut args = &args_passed[..];
-                        for (name, default) in arg_names {
-                            let val = match (args, default) {
-                                // Fill next arg
-                                ([first, rest @ ..], _) => {
-                                    args = rest;
-                                    first
-                                },
-                                // Use a def'n'ed default
-                                ([], Some(v)) => v,
-                                // We passed too many arguments or too few
-                                // should have already checked for this
-                                _ => unreachable!(),
+                            // Eval the args in the parent context
+                            let args_passed = if closed_env.is_some() {
+                                args
+                                    // eval args for a function call
+                                    .into_iter()
+                                    .map(|arg| self.eval_inner(env.clone(), arg))
+                                    .collect::<Result<Vec<_>, _>>()?
+                            } else {
+                                // let them be for a macro
+                                args
                             };
-                            arg_env.insert(*name, val.clone());
-                        }
-                        if let Some(name) = variadic {
-                            let trail = Engine::list_to_sexp(args);
-                            arg_env.insert(name, trail);
-                        }
 
-                        let arg_env = Gc::new(GcCell::new(arg_env));
-                        let body_env = if closed_env.is_some() {
-                            // lambdas are called closing over their environment
-                            arg_env.clone()
-                        } else {
-                            // macros just use the parent environment with args,
-                            // so create a disposable env for it to mess up
-                            Gc::new(GcCell::new(Namespace::new(arg_env.clone())))
-                        };
-
-                        let (body, tail) = match &body[..] {
-                            [body @ .., tail] => (body, tail),
-                            [] => {
-                                return Err(self.make_err(
-                                    "application/no-body",
-                                    "application: had a procedure with no body sexprs".to_string(),
-                                    None,
-                                ));
+                            let minimum_argc = arg_names
+                                .iter()
+                                .filter(|(_, default)| default.is_none())
+                                .count();
+                            if *variadic {
+                                thtd::check_min_argc(self, &args_passed, minimum_argc - 1)?;
+                            } else {
+                                thtd::check_argc(
+                                    self,
+                                    &args_passed,
+                                    minimum_argc,
+                                    arg_names.len(),
+                                )?;
                             }
+
+                            let (arg_names, variadic) = if *variadic {
+                                (
+                                    &arg_names[..arg_names.len() - 1],
+                                    Some(arg_names.last().unwrap().0),
+                                )
+                            } else {
+                                (&arg_names[..], None)
+                            };
+
+                            let mut args = &args_passed[..];
+                            for (name, default) in arg_names {
+                                let val = match (args, default) {
+                                    // Fill next arg
+                                    ([first, rest @ ..], _) => {
+                                        args = rest;
+                                        first
+                                    }
+                                    // Use a def'n'ed default
+                                    ([], Some(v)) => v,
+                                    // We passed too many arguments or too few
+                                    // should have already checked for this
+                                    _ => unreachable!(),
+                                };
+                                arg_env.insert(*name, val.clone());
+                            }
+                            if let Some(name) = variadic {
+                                let trail = Engine::list_to_sexp(args);
+                                arg_env.insert(name, trail);
+                            }
+
+                            let arg_env = Gc::new(GcCell::new(arg_env));
+                            let body_env = if closed_env.is_some() {
+                                // lambdas are called closing over their environment
+                                arg_env.clone()
+                            } else {
+                                // macros just use the parent environment with args,
+                                // so create a disposable env for it to mess up
+                                Gc::new(GcCell::new(Namespace::new(arg_env.clone())))
+                            };
+
+                            let (body, tail) = match &body[..] {
+                                [body @ .., tail] => (body, tail),
+                                [] => {
+                                    return Err(self.make_err(
+                                        "application/no-body",
+                                        "application: had a procedure with no body sexprs"
+                                            .to_string(),
+                                        None,
+                                    ));
+                                }
+                            };
+                            for expr in body {
+                                self.eval_inner(body_env.clone(), expr.clone())?;
+                            }
+                            let last = if closed_env.is_some() {
+                                tail.to_owned()
+                            } else {
+                                self.eval_inner(arg_env.clone(), tail.clone())?
+                            };
+                            Ok(TailRec::TailRecur(last, arg_env))
                         };
-                        for expr in body {
-                            self.eval_inner(body_env.clone(), expr.clone())?;
-                        }
-                        let last = if closed_env.is_some() {
-                            tail.to_owned()
-                        } else {
-                            self.eval_inner(arg_env.clone(), tail.clone())?
-                        };
-                        Ok(TailRec::TailRecur(last, arg_env))
+                        let res = trynt();
+                        res.map_err(|mut e| {
+                            e.call_trace.trace.push(*name);
+                            e
+                        })
                     }
                     _ => Err(self.make_err(
                         "application/not-callable",

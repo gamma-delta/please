@@ -18,29 +18,33 @@ X juxt
     ()))
 
 (define (fold fn acc . lists)
-  (if lists
+  (if (all (~ null?) lists)
     ; still have leftover list
-    (fold fn
+    (apply fold fn
       (apply fn acc (for car lists))
       (for cdr lists))
     ; we're done, give the acc
     acc))
 
 (define (map fn . rows)
-  (if (apply and rows)
-    (lazy-cons (apply fn (for rows car)) (apply map fn (for rows cdr)))
-    ())))
+  (if (all (~ null?) rows)
+    (lazy-cons (apply fn (for car rows)) (apply map fn (for cdr rows)))
+    ()))
 
 (define (filter fn list)
   (and list
     (if (fn (car list))
       ; it passes, put the original on and cons on the rest
-      (lazy-cons (car list) (filter fn (cdr list))
+      (lazy-cons (car list) (filter fn (cdr list)))
       ; ignore and just pass the rest
-      (filter fn (cdr list))))))
+      (filter fn (cdr list)))))
 
-(define-macro (compose fn . rest)
-  `(apply lambda-> ,(append (list-rev rest) fn)))
+(define (compose fn . rest)
+  (if rest
+    (\ (x)
+      ; execute fn on ((the rest of the composed functions) of x)
+      (fn ((apply compose rest) x)))
+    fn))
 
 (define (identity x) x) ; man that was hard
 
@@ -50,20 +54,24 @@ X juxt
 
 (define (conjoin . fs) 
   (\ xs 
-    (all fs (\ (fn) (apply fn xs)))))
+    (all (curryr apply xs) fs)))
 
 (define (disjoin . fs) 
   (\ xs 
-    (any fs (\ (fn) (apply fn xs)))))
+    (any (curryr apply xs) fs)))
 
 (define (juxt . fs)
   (\ xs
-    (for fs (\ (fn) (apply fn xs)))))
+    (for (curryr apply xs) fs)))
 
 (define (curry fn . args)
   (lambda newargs
     (apply fn (append args newargs))))
 (define partial curry)
+
+(define (curryr fn . args)
+  (lambda newargs
+    (apply fn (append newargs args))))
 
 (define (all fn list) 
   (if list

@@ -4,9 +4,9 @@
 (define (positive? x) (> x 0))
 (define (negative? x) (< x 0))
 (define (zero? x)     (= x 0))
-(define <0 positive)
-(define >0 negative)
-(define =0 zero)
+(define <0 positive?)
+(define >0 negative?)
+(define =0 zero?)
 (define (<=0 x) (<= x 0))
 (define (>=0 x) (>= x 0))
 
@@ -14,3 +14,6 @@
   (if (callable? x)
     (negate x)
     (not x)))
+
+(define (divisible-by x divisor)
+  (=0 (% x divisor)))

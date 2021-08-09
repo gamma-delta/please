@@ -1,10 +1,12 @@
 (define (list . args) args)
 
 (define (list-rev l)
-  (fold (lambda (acc elt) (cons elt acc))) () l)
+  (if (> (list-len l) 1)
+    (extend (list-rev (cdr l)) (car l))
+    l))
 
-(define (list-len list)
-  (fold (lambda (acc elt) (add1 acc))) 0 l)
+(define (list-len l)
+  (fold (lambda (acc _) (add1 acc)) 0 l))
 
 (define (append l x) 
   (let ([head (car l)] [tail (cdr l)])
@@ -30,8 +32,8 @@
 (define (ninth l)   (list-nth l 8))
 (define (tenth l)   (list-nth l 9))
 
-(define (list-empty? l)  (=0 (list-len l)))
-(define list-!empty? (~ list-empty?)) ; this is just `null?` w/e
+(define (list-empty? l) (=0 (list-len l))) ; this is just `null?` w/e
+(define list-!empty? (~ list-empty?)) 
 
 ; Return the first `n` elements of `l`
 (define (take l n) 
@@ -81,7 +83,7 @@
     [ads (for (\ (code) (picker-gen code "a" "d")) (range gen-count))]
     [ca/drs (for (\ (code) (picker-gen code car cdr)) (range gen-count))]
     [name (apply string "c" (extend ads "r"))])
-    `(prn name))))
+    `(prn name)))
 
 ((define-macro (make-car-family max) 
   (if (> max 2)

@@ -19,11 +19,13 @@ use quoting::*;
 use strings::*;
 use symbols::*;
 
-use std::io::Write;
+use std::{fs, io::Write, path::Path};
 
 use gc::{Gc, GcCell};
 
 use crate::{Engine, EvalResult, Exception, Expr, Namespace};
+
+const THTD_LIB_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/thtdlib");
 
 pub fn add_thtandard_library(engine: &mut Engine) {
     let thtdlib = engine.thtdlib();
@@ -105,6 +107,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("callable?", is_callable as _),
         ("procedure?", is_procedure as _),
         ("macro?", is_macro as _),
+        // etc
+        ("reload-thtdlib", reload_thtd as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
@@ -135,25 +139,42 @@ pub fn add_thtandard_library(engine: &mut Engine) {
     }
 
     // and the thtdlib impled in ruth itself
-    for source in [
-        include_str!("thtd/funcs.ruth"),
-        include_str!("thtd/math.ruth"),
-        include_str!("thtd/pairs_lists.ruth"),
-        include_str!("thtd/misc.ruth"),
-        include_str!("thtd/eq.ruth"),
-        include_str!("thtd/control.ruth"),
-    ] {
-        let res = engine.read_eval(source, "<thtdlib>".to_owned());
-        if let Err(e) = res {
-            e.report()
-                .eprint(ariadne::sources(std::iter::once((
-                    "<thtdlib>".to_owned(),
-                    source.to_owned(),
-                ))))
-                .unwrap();
-            panic!("");
+    load_thtd_lib(engine).unwrap();
+}
+
+fn load_thtd_lib(engine: &mut Engine) -> EvalResult {
+    let nil_out = Ok(Gc::new(Expr::Nil));
+    let thtd_path = Path::new(THTD_LIB_ROOT);
+
+    let mut todo = vec![thtd_path.to_path_buf()];
+    while let Some(path) = todo.pop() {
+        if path.is_dir() {
+            for entry in fs::read_dir(path).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                todo.push(path)
+            }
+        } else {
+            // Run the callback
+            let name = path.to_string_lossy().into_owned();
+            let source = fs::read_to_string(&name).unwrap();
+            let res = engine.read_eval(&source, name.to_owned());
+            if let Err(e) = res {
+                e.report()
+                    .eprint(ariadne::sources(std::iter::once((name, source))))
+                    .unwrap();
+                return nil_out;
+            }
         }
     }
+
+    nil_out
+}
+
+// Function to reload
+fn reload_thtd(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 0, 0)?;
+    load_thtd_lib(engine)
 }
 
 // "Contract" functions

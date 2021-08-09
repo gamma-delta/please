@@ -33,6 +33,22 @@ fn define_internals(
         check_argc(engine, args, 2, 2)?;
 
         let evaled = engine.eval_inner(env.to_owned(), args[1].to_owned())?;
+        let evaled = match &*evaled {
+            Expr::Procedure {
+                args,
+                body,
+                env,
+                variadic,
+                ..
+            } => Gc::new(Expr::Procedure {
+                args: args.to_owned(),
+                body: body.to_owned(),
+                env: env.to_owned(),
+                variadic: *variadic,
+                name: Some(*id),
+            }),
+            _ => evaled,
+        };
         env.borrow_mut().insert(*id, evaled);
         Ok(TailRec::Exit(Gc::new(Expr::Nil)))
     } else if let Expr::Pair(name, tail) = &*first {
@@ -48,6 +64,9 @@ fn define_internals(
             return Err(bad_arg_type(engine, first, 0, "(symbol, any)"));
         }
 
+        // Make the evaluator do the work for us.
+        // Rearrange the arguments and re-eval them; eventually it will settle
+        // into the top branch.
         let define_name = engine.intern_symbol("define");
         let define_list = &[
             Gc::new(Expr::Symbol(define_name)),
@@ -121,6 +140,7 @@ pub fn let_(
                 body: args[1..].to_vec(),
                 env: Some(scope.clone()),
                 variadic: false,
+                name: Some(s),
             });
             scope.borrow_mut().insert(s, lambda.clone());
             Ok(TailRec::Exit(apply(
