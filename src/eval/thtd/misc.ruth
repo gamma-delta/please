@@ -1,20 +1,37 @@
 (define-macro (do . bodies) (eval (append '(let ()) bodies)))
 
-(define-macro (-> . bodies) 
-  `(fold
-    ,(car bodies) ; accumulator is the original val passed
-    ,(cdr bodies) ; fold over the rest of the unevaled bodies
-    ,(\ (threaded body)
-      (prn threaded)
-      (prn body)
-      (let (
-        [slot-flankers (split-around '_ body)]
-        [spliced (if slot-flankers
-          ; splice our threaded thing in here
-          (append (car slot-flankers) (append threaded (cdr slot-flankers)))
-          ; there was nothing so stick it on the start
-          (cons threaded body))])
-        (prn (examine spliced))
-        (eval spliced)))))
+(define-macro (-> expr . more)
+  (if more
+    (let (
+      [body (car more)]
+      [flankers (split-around '_ body)]
+      [threaded (cond
+        ; put the threadee between the flankers
+        [flankers (append (car flankers) (cons expr (cdr flankers)))] 
+        ; put the threadee after the first argument (the function, probably)
+        [(list? body) (cons (car body) (list expr (cdr body)))]
+        ; if it's just one bare thing, use it as shorthand for a function call
+        ; and insert it at the start.
+        [true (list body expr)])]
+      `(-> ,threaded . ,(cdr more)))
+    `(quote ,expr))))
 
-(define-macro (examine x) (string x))
+(define-macro (lambda-> expr . more) (\ (x) (apply -> x expr more)))
+
+(define-macro (->> expr . more)
+  (if more
+    (let (
+      [body (car more)]
+      [flankers (split-around '_ body)]
+      [threaded (cond
+        ; put the threadee between the flankers
+        [flankers (append (car flankers) (cons expr (cdr flankers)))] 
+        ; put the threadee at the end
+        [(list? body) (extend body expr)]
+        ; if it's just one bare thing, use it as shorthand for a function call
+        ; and insert it at the end.
+        [true (list body expr)])]
+      `(->> ,threaded . ,(cdr more)))
+    `(quote ,expr))))
+
+(define-macro (lambda->> expr . more) (\ (x) (apply ->> x expr more)))

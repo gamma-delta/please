@@ -22,7 +22,7 @@ impl ExprParseError {
             .with_config(ariadne::Config::default().with_char_set(CharSet::Ascii))
             .with_message(err.data.to_string());
 
-        let all = (source, start..end);
+        let all = (source.to_owned(), start..end);
 
         match &err.data {
             ExprParseErrorInfo::ParseInt {
@@ -94,7 +94,12 @@ impl ExprParseError {
                     .with_note("try putting a '\"' at the end");
             }
             ExprParseErrorInfo::InvalidEscape(pos, problem) => {
-                report = report.with_label(Label::new(all).with_message(problem.to_string()));
+                report = report
+                    .with_label(
+                        Label::new((source, start + pos..start + pos + 1))
+                            .with_message(problem.to_string()),
+                    )
+                    .with_label(Label::new(all).with_message("the string is here".to_owned()));
             }
             ExprParseErrorInfo::InvalidRemainder => {
                 report = report
@@ -264,7 +269,6 @@ fn read_until_delim(s: &str) -> (&str, &str) {
 fn is_delim(c: char) -> bool {
     match c {
         '(' | ')' | '[' | ']' | '{' | '}' => true,
-        ',' | ';' => true,
         _ if c.is_whitespace() => true,
         _ => false,
     }
@@ -535,6 +539,8 @@ fn is_closer(c: char) -> bool {
 fn try_read_string<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a, String>> {
     let whole = s.trim_start();
     if let Some(mut s) = whole.strip_prefix('"') {
+        // doesn't make sure \ is before "
+        // see which index is first, use Either to figure which to consume to.
         let mut accumulated = String::new();
         loop {
             if let Some(esc_pos) = s.find('\\') {

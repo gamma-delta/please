@@ -4,6 +4,8 @@ use crate::{eval::TailRec, Value};
 
 use super::*;
 
+use paste::paste;
+
 #[derive(Clone, Copy)]
 enum Num {
     Int(i64),
@@ -42,7 +44,7 @@ macro_rules! num_ops {
             type Output = Self;
             fn $name(self, rhs: Self) -> Self::Output {
                 match (self, rhs) {
-                    (Num::Int(l), Num::Int(r)) => Num::Int(l $op r),
+                    (Num::Int(l), Num::Int(r)) => paste! { Num::Int(l.[< wrapping_ $name >](r)) },
                     (Num::Float(l), Num::Int(r)) => Num::Float(l $op r as f64),
                     (Num::Int(l), Num::Float(r)) => Num::Float(l as f64 $op r),
                     (Num::Float(l), Num::Float(r)) => Num::Float(l $op r),
@@ -61,6 +63,7 @@ num_ops! {
     (std::ops::Sub => sub -)
     (std::ops::Mul => mul *)
     (std::ops::Div => div /)
+    (std::ops::Rem => rem %)
 }
 
 pub fn add(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
@@ -94,7 +97,7 @@ pub fn sub(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
 pub fn mul(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     let mut product = Num::Int(1);
     for (idx, arg) in args.iter().enumerate() {
-        product = product + Num::from_expr(engine, arg.to_owned(), idx)?;
+        product = product * Num::from_expr(engine, arg.to_owned(), idx)?;
     }
     Ok(product.to_expr())
 }
@@ -113,10 +116,164 @@ pub fn div(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
     }
 
     for (idx, arg) in args.iter().enumerate().skip(1) {
-        quotient = quotient + Num::from_expr(engine, arg.to_owned(), idx)?;
+        quotient = quotient / Num::from_expr(engine, arg.to_owned(), idx)?;
     }
 
     Ok(quotient.to_expr())
+}
+
+pub fn rem(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 2, 2)?;
+
+    let dividend = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    let divisor = Num::from_expr(engine, args[1].to_owned(), 1)?;
+
+    let rem = dividend % divisor;
+    Ok(rem.to_expr())
+}
+
+pub fn pow(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 2, 2)?;
+
+    let lhs = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    let rhs = Num::from_expr(engine, args[1].to_owned(), 0)?;
+    let res = match (lhs, rhs) {
+        (Num::Int(l), Num::Int(r)) => {
+            if r > 0 {
+                Num::Int(l.pow(r as u32))
+            } else {
+                Num::Float((l as f64).powi(r as i32))
+            }
+        }
+        (Num::Float(l), Num::Int(r)) => Num::Float(l.powi(r as i32)),
+        (Num::Int(l), Num::Float(r)) => Num::Float((l as f64).powf(r)),
+        (Num::Float(l), Num::Float(r)) => Num::Float(l.powf(r)),
+    };
+    Ok(res.to_expr())
+}
+
+macro_rules! rounders {
+    ($name:ident) => {
+        pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+            check_argc(engine, args, 1, 1)?;
+
+            let roundee = Num::from_expr(engine, args[0].to_owned(), 0)?;
+            Ok(if let Num::Float(f) = roundee {
+                Num::Int(f.$name() as i64)
+            } else {
+                roundee // keep the int
+            }.to_expr())
+        }
+    };
+    ($head:tt $($tail:tt)*) => {
+        rounders! { $head }
+        rounders! { $($tail)* }
+    };
+}
+
+rounders! {
+    round trunc floor ceil
+}
+
+pub fn to_inexact(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let it = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    Ok(Gc::new(Expr::Float(it.as_float())))
+}
+
+macro_rules! bitwise {
+    (($name:ident $op:tt)) => {
+        pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+            check_argc(engine, args, 1, 1)?;
+
+            let lhs = match &*args[0] {
+                Expr::Integer(it) => *it,
+                _ => return Err(bad_arg_type(engine, args[0].clone(), 0, "integer")),
+            };
+            let rhs = match &*args[1] {
+                Expr::Integer(it) => *it,
+                _ => return Err(bad_arg_type(engine, args[1].clone(), 1, "integer")),
+            };
+            Ok(Gc::new(Expr::Integer(lhs $op rhs)))
+        }
+    };
+    ($head:tt $($tail:tt)*) => {
+        bitwise! { $head }
+        bitwise! { $($tail)* }
+    };
+}
+
+bitwise! {
+    (bitwise_and &)
+    (bitwise_or |)
+    (bitwise_xor ^)
+}
+
+pub fn bitwise_not(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let it = match &*args[0] {
+        Expr::Integer(it) => *it,
+        _ => return Err(bad_arg_type(engine, args[0].clone(), 0, "integer")),
+    };
+    Ok(Gc::new(Expr::Integer(!it)))
+}
+
+pub fn bitwise_shift(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let lhs = match &*args[0] {
+        Expr::Integer(it) => *it,
+        _ => return Err(bad_arg_type(engine, args[0].clone(), 0, "integer")),
+    };
+    let rhs = match &*args[1] {
+        Expr::Integer(it) => *it,
+        _ => return Err(bad_arg_type(engine, args[1].clone(), 1, "integer")),
+    };
+    let res = if rhs.is_positive() {
+        lhs.wrapping_shl(rhs as u32)
+    } else {
+        lhs.wrapping_shr(-rhs as u32)
+    };
+    Ok(Gc::new(Expr::Integer(res)))
+}
+
+pub fn bitwise_rotate(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let lhs = match &*args[0] {
+        Expr::Integer(it) => *it,
+        _ => return Err(bad_arg_type(engine, args[0].clone(), 0, "integer")),
+    };
+    let rhs = match &*args[1] {
+        Expr::Integer(it) => *it,
+        _ => return Err(bad_arg_type(engine, args[1].clone(), 1, "integer")),
+    };
+    let res = if rhs.is_positive() {
+        lhs.rotate_left(rhs as u32)
+    } else {
+        lhs.rotate_right(-rhs as u32)
+    };
+    Ok(Gc::new(Expr::Integer(res)))
+}
+
+pub fn popcnt(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let it = match &*args[0] {
+        Expr::Integer(it) => *it,
+        _ => return Err(bad_arg_type(engine, args[0].clone(), 0, "integer")),
+    };
+    Ok(Gc::new(Expr::Integer(it.count_ones() as i64)))
 }
 
 pub fn and(

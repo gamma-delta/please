@@ -1,14 +1,18 @@
+(define (list . args) args)
+
 (define (list-rev l)
-  (fold () l (lambda (acc elt) (cons elt acc))))
+  (fold (lambda (acc elt) (cons elt acc))) () l)
 
 (define (list-len list)
-  (fold 0 list (lambda (acc elt) (add1 acc))))
+  (fold (lambda (acc elt) (add1 acc))) 0 l)
 
 (define (append l x) 
   (let ([head (car l)] [tail (cdr l)])
     (if tail
       (cons head (append tail x))
       (cons head x))))
+
+(define (extend l . rest) (append l rest)) ; auto-list
 
 (define (list-nth l n)
   (if (<=0 n)
@@ -61,3 +65,27 @@
 (define (split-around needle haystack [equal? equal?])
   (let ([n (find needle haystack equal?)])
     (and n (split-at haystack n))))
+
+(define-macro (car-family len)
+  (let (
+    [len (eval len)] ; altho we're passing a literal w/e
+    [gen-count (** 2 len)]
+    ; Generates the (true false ...) list from the code
+    [picker-gen (\ (code t f) 
+      (for (\ (bitidx) 
+        (if ((~ =0) (bitand code (bitshift 1 bitidx))) 
+          t
+          f))
+      (range len)))]
+    ; all the ad lists
+    [ads (for (\ (code) (picker-gen code "a" "d")) (range gen-count))]
+    [ca/drs (for (\ (code) (picker-gen code car cdr)) (range gen-count))]
+    [name (apply string "c" (extend ads "r"))])
+    `(prn name))))
+
+((define-macro (make-car-family max) 
+  (if (> max 2)
+    (do
+      '(car-family max)
+      `(make-car-family ,(sub1 max)))
+    ())) 7)

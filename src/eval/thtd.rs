@@ -59,6 +59,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("-", sub as _),
         ("*", mul as _),
         ("/", div as _),
+        ("%", rem as _),
+        ("**", pow as _),
         ("<", lt as _),
         (">", gt as _),
         ("<=", le as _),
@@ -66,6 +68,18 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("=", num_eq as _),
         ("not", not as _),
         ("xor", xor as _),
+        ("round", round as _),
+        ("trunc", trunc as _),
+        ("floor", floor as _),
+        ("ceil", ceil as _),
+        ("->inexact", to_inexact as _),
+        ("bitand", bitwise_and as _),
+        ("bitor", bitwise_or as _),
+        ("bitxor", bitwise_xor as _),
+        ("bitnot", bitwise_not as _),
+        ("bitshift", bitwise_shift as _),
+        ("bitrot", bitwise_rotate as _),
+        ("bitcount", popcnt as _),
         // string
         ("string", to_string as _),
         ("string-len", string_len as _),
@@ -128,7 +142,16 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         include_str!("thtd/eq.ruth"),
         include_str!("thtd/control.ruth"),
     ] {
-        engine.read_eval(source, "<thtdlib>".to_owned()).unwrap();
+        let res = engine.read_eval(source, "<thtdlib>".to_owned());
+        if let Err(e) = res {
+            e.report()
+                .eprint(ariadne::sources(std::iter::once((
+                    "<thtdlib>".to_owned(),
+                    source.to_owned(),
+                ))))
+                .unwrap();
+            panic!("");
+        }
     }
 }
 

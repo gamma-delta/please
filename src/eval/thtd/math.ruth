@@ -10,9 +10,7 @@
 (define (<=0 x) (<= x 0))
 (define (>=0 x) (>= x 0))
 
-; If x is `callable?`, compose `not` with it.
-; Otherwise return `(not x)`
 (define (~ x)
   (if (callable? x)
-    (\ (y) (not (x y)))
+    (negate x)
     (not x)))
