@@ -12,6 +12,32 @@
     (cons (fn (car list)) (for (cdr list) fn))
     ()))
 
+(define (map fn . rows)
+  (let (
+    [col-heads (for rows car)]
+    [col-tails (for rows cdr)])
+    (if (apply and rows)
+      (cons (apply fn col-heads) (apply map fn col-tails))
+      ())))
+
+(define (const it) (\ _ it))
+
 (define (curry fn . args)
   (lambda newargs
     (apply fn (append args newargs))))
+(define partial curry)
+
+(define (all list fn) 
+  (if list
+    (and (fn (car list)) (all (cdr list) fn))
+    true))
+
+(define (any list fn) 
+  (if list
+    (or (fn (car list)) (all (cdr list) fn))
+    false))
+
+(define-macro (thunk . bodies) `(\ () . ,bodies))
+
+(define \ lambda)
+(define fn lambda)

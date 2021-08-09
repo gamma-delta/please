@@ -1,6 +1,5 @@
 use std::fs;
 
-use ariadne::FileCache;
 use ruth::Engine;
 
 mod repl;

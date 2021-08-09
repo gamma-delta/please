@@ -1,0 +1,3 @@
+(define (list? l) (or (nil? l) (and (pair? l) (list? (cdr l)))))
+
+(define null? nil?)

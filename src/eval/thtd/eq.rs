@@ -3,10 +3,8 @@
 use super::*;
 
 /// return whether two things are the same object
-pub fn id_equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-    if let Err(ono) = check_min_argc(engine, args, 1) {
-        return ono;
-    };
+pub fn id_equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_min_argc(engine, args, 1)?;
     let (lhs, rest) = args.split_first().unwrap();
     let mut all_eq = true;
     for rhs in rest {
@@ -15,23 +13,23 @@ pub fn id_equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]
             break;
         }
     }
-    engine.make_bool(all_eq)
+    Ok(engine.make_bool(all_eq))
 }
 
 /// return whether two things are equal w/o type juggling
-pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-    if let Err(ono) = check_min_argc(engine, args, 1) {
-        return ono;
-    };
+pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_min_argc(engine, args, 1)?;
     let (lhs, rest) = args.split_first().unwrap();
     let mut all_eq = true;
     for rhs in rest {
+        // commutativity (?) means if a == b and a == c, b == c
+        // so we just check the first against each
         all_eq = check_equal(engine, lhs.to_owned(), rhs.to_owned());
         if !all_eq {
             break;
         }
     }
-    engine.make_bool(all_eq)
+    Ok(engine.make_bool(all_eq))
 }
 
 fn check_equal(engine: &mut Engine, lhs: Gc<Expr>, rhs: Gc<Expr>) -> bool {
@@ -56,11 +54,9 @@ fn check_equal(engine: &mut Engine, lhs: Gc<Expr>, rhs: Gc<Expr>) -> bool {
 macro_rules! predicates {
     (($name:ident $pat:pat)) => {
         #[allow(unused_parens)]
-        pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-            if let Err(ono) = check_argc(engine, args, 1, 1) {
-                return ono;
-            };
-            engine.make_bool(matches!(&*args[0], $pat))
+        pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+            check_argc(engine, args, 1, 1)?;
+            Ok(engine.make_bool(matches!(&*args[0], $pat)))
         }
     };
     ($head:tt $($tail:tt)+) => {

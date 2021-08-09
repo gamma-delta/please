@@ -17,8 +17,6 @@ extern crate derivative;
 use bimap::BiHashMap;
 use gc::{Finalize, Gc, GcCell, Trace};
 
-type Symbol = u64;
-
 #[derive(Derivative, Trace, Finalize)]
 #[derivative(Debug)]
 pub enum Expr {
@@ -39,14 +37,14 @@ pub enum Expr {
     SpecialForm {
         #[derivative(Debug(format_with = "Expr::form_formatter"))]
         #[unsafe_ignore_trace]
-        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> TailRec,
+        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Result<TailRec, Exception>,
         name: Symbol,
     },
     /// Named native function and the symbol of its name.
     NativeProcedure {
         #[derivative(Debug(format_with = "Expr::func_formatter"))]
         #[unsafe_ignore_trace]
-        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
+        func: fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> EvalResult,
         name: Symbol,
     },
 
@@ -62,14 +60,14 @@ pub enum Expr {
 impl Expr {
     #[allow(clippy::type_complexity)]
     fn form_formatter(
-        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> TailRec,
+        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Result<TailRec, Exception>,
         f: &mut std::fmt::Formatter,
     ) -> Result<(), std::fmt::Error> {
         write!(f, "fn(...)")
     }
     #[allow(clippy::type_complexity)]
     fn func_formatter(
-        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Gc<Expr>,
+        _: &fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> EvalResult,
         f: &mut std::fmt::Formatter,
     ) -> Result<(), std::fmt::Error> {
         write!(f, "fn(...)")
@@ -359,8 +357,8 @@ impl Engine {
     /// If the given index or any cdr doesn't point to a `Pair`
     /// or `Null` (ie it's not a proper list)
     /// then `None` is returned.
-    pub fn sexp_to_list(&self, expr: Gc<Expr>) -> Option<Vec<Gc<Expr>>> {
-        let (list, end) = self.expr_to_improper_list(expr);
+    pub fn sexp_to_list(expr: Gc<Expr>) -> Option<Vec<Gc<Expr>>> {
+        let (list, end) = Self::expr_to_improper_list(expr);
         if let Expr::Nil = &*end {
             Some(list)
         } else {
@@ -370,25 +368,25 @@ impl Engine {
 
     /// Turn an improper list into the list leading up to the last element,
     /// and the last element. Proper lists will have the last element be `()`.
-    pub fn expr_to_improper_list(&self, expr: Gc<Expr>) -> (Vec<Gc<Expr>>, Gc<Expr>) {
-        fn recur(engine: &Engine, expr: Gc<Expr>, wip: &mut Vec<Gc<Expr>>) -> Gc<Expr> {
+    pub fn expr_to_improper_list(expr: Gc<Expr>) -> (Vec<Gc<Expr>>, Gc<Expr>) {
+        fn recur(expr: Gc<Expr>, wip: &mut Vec<Gc<Expr>>) -> Gc<Expr> {
             match &*expr {
                 Expr::Pair(car, cdr) => {
                     wip.push(car.to_owned());
-                    recur(engine, cdr.to_owned(), wip)
+                    recur(cdr.to_owned(), wip)
                 }
                 _ => expr,
             }
         }
         let mut out = Vec::new();
-        let last = recur(self, expr, &mut out);
+        let last = recur(expr, &mut out);
         (out, last)
     }
 
     /// Create a cons list from the given list, and return its head.
-    pub fn list_to_sexp(&self, list: &[Gc<Expr>]) -> Gc<Expr> {
+    pub fn list_to_sexp(list: &[Gc<Expr>]) -> Gc<Expr> {
         if let Some((car, cdr)) = list.split_first() {
-            Gc::new(Expr::Pair(car.clone(), self.list_to_sexp(cdr)))
+            Gc::new(Expr::Pair(car.clone(), Self::list_to_sexp(cdr)))
         } else {
             Gc::new(Expr::Nil)
         }
@@ -422,16 +420,14 @@ impl Engine {
     }
 
     /// Make an error, a cons list `'(! "msg")` or `'(! "msg" userdata)`.
-    pub fn make_err(&mut self, msg: String, userdata: Option<Gc<Expr>>) -> Gc<Expr> {
-        let oh_no = self.intern_symbol("!");
-        if let Some(userdata) = userdata {
-            self.list_to_sexp(&[
-                Gc::new(Expr::Symbol(oh_no)),
-                Gc::new(Expr::String(msg)),
-                userdata,
-            ])
-        } else {
-            self.list_to_sexp(&[Gc::new(Expr::Symbol(oh_no)), Gc::new(Expr::String(msg))])
+    /// As a helper, if `userdata` is None, the userdata becomes `()`.
+    pub fn make_err(&mut self, name: &str, msg: String, userdata: Option<Gc<Expr>>) -> Exception {
+        let sym = self.intern_symbol(name);
+
+        Exception {
+            id: sym,
+            info: msg,
+            data: userdata.unwrap_or_else(|| Gc::new(Expr::Nil)),
         }
     }
 
@@ -468,3 +464,33 @@ impl Namespace {
         })
     }
 }
+
+#[derive(Debug)]
+pub struct Exception {
+    /// Name of the exception
+    pub id: Symbol,
+    /// User-readable information
+    pub info: String,
+    /// Additional associated data
+    pub data: Value,
+}
+
+impl Exception {
+    fn into_expr(self, engine: &mut Engine) -> Value {
+        // i could not tell you why i need to do this
+        let Exception { id, info, data } = self;
+        Engine::list_to_sexp(&[
+            Gc::new(Expr::Symbol(engine.intern_symbol("!"))),
+            Gc::new(Expr::Symbol(id)),
+            Gc::new(Expr::String(info)),
+            data,
+        ])
+    }
+}
+
+pub type Symbol = u64;
+/// Normal values
+pub type Value = Gc<Expr>;
+
+/// Result of any calculation that may throw an exception
+pub type EvalResult = Result<Value, Exception>;

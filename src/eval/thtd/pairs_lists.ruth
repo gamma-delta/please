@@ -11,7 +11,7 @@
       (cons head x))))
 
 (define (list-nth l n)
-  (if (<= n 0)
+  (if (<=0 n)
     (car l)
     (list-nth (cdr l) (sub1 n))))
 
@@ -26,7 +26,30 @@
 (define (ninth l)   (list-nth l 8))
 (define (tenth l)   (list-nth l 9))
 
-(define (find needle haystack) 
+(define (list-empty? l)  (=0 (list-len l)))
+(define list-!empty? (~ list-empty?)) ; this is just `null?` w/e
+
+; Return the first `n` elements of `l`
+(define (take l n) 
+  (if (<=0 n)
+    ()
+    (cons (car l) (take (cdr l) (sub1 n)))))
+
+; Skip the first `n` elements of `l`
+(define (leave l n)
+  (if (<=0 n)
+    l
+    (leave (cdr l) (sub1 n))))
+(define drop leave) ; alwinfy's no fun
+
+; Omit the nth element of l
+(define (omit l n) 
+  (let ([split (split-at l n)])
+    (append (car split) (cdr split))))
+
+(define (split-at l n) (cons (take l n) (leave l (add1 n))))
+
+(define (find needle haystack [equal? equal?]) 
   (let searcher ([n 0] [haystack haystack])
     (cond
       [(not haystack) false]
@@ -35,4 +58,6 @@
 
 ;; Returns (head, tail) around the element requested,
 ;; or false if it isn't found.
-;; Uses `equal?`
+(define (split-around needle haystack [equal? equal?])
+  (let ([n (find needle haystack equal?)])
+    (and n (split-at haystack n))))

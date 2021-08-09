@@ -3,10 +3,18 @@
 use super::*;
 use crate::eval::TailRec;
 
-pub fn lambda(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+pub fn lambda(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
     lambda_macro_inner(engine, env, args, true)
 }
-pub fn macro_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+pub fn macro_(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
     lambda_macro_inner(engine, env, args, false)
 }
 
@@ -15,27 +23,25 @@ fn lambda_macro_inner(
     env: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
     is_lambda: bool,
-) -> TailRec {
+) -> Result<TailRec, Exception> {
     /*
         (lambda
             (args list)
             (body) (body) (body))
     */
 
-    if let Err(err) = check_min_argc(engine, args, 2) {
-        return TailRec::Exit(err);
-    }
+    check_min_argc(engine, args, 2)?;
 
     let args_list = args[0].clone();
-    let (args_list, last) = engine.expr_to_improper_list(args_list);
+    let (args_list, last) = Engine::expr_to_improper_list(args_list);
 
     let vararg_name = match &*last {
         Expr::Nil => None,
         Expr::Symbol(sym) => Some(*sym),
-        _ => return TailRec::Exit(bad_arg_type(engine, last, 0, "list of symbols")),
+        _ => return Err(bad_arg_type(engine, last, 0, "list of symbols")),
     };
 
-    let args_symbols = args_list
+    let mut args_symbols = args_list
         .into_iter()
         .map(|arg| match &*arg {
             Expr::Symbol(it) => Ok((*it, None)),
@@ -50,7 +56,7 @@ fn lambda_macro_inner(
                         "list of symbols or (symbol default)s",
                     ));
                 };
-                let default = match engine.sexp_to_list(cdr.to_owned()) {
+                let default = match Engine::sexp_to_list(cdr.to_owned()) {
                     Some(it) => it,
                     None => {
                         return Err(bad_arg_type(
@@ -72,7 +78,7 @@ fn lambda_macro_inner(
                         ))
                     }
                 };
-                let default = engine.eval(env.clone(), default);
+                let default = engine.eval_inner(env.clone(), default)?;
                 Ok((sym, Some(default)))
             }
             _ => Err(bad_arg_type(
@@ -82,11 +88,7 @@ fn lambda_macro_inner(
                 "list of symbols or (symbol default)s",
             )),
         })
-        .collect::<Result<Vec<_>, _>>();
-    let mut args_symbols = match args_symbols {
-        Ok(it) => it,
-        Err(ono) => return TailRec::Exit(ono),
-    };
+        .collect::<Result<Vec<_>, _>>()?;
     if let Some(last) = vararg_name {
         args_symbols.push((last, None));
     }
@@ -99,27 +101,32 @@ fn lambda_macro_inner(
         env: if is_lambda { Some(env) } else { None }, // close over the calling context
         variadic: vararg_name.is_some(),
     };
-    TailRec::Exit(Gc::new(proc))
+    Ok(TailRec::Exit(Gc::new(proc)))
 }
 
-pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-    if let Err(ono) = check_min_argc(engine, args, 1) {
-        return ono;
-    }
+pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_min_argc(engine, args, 1)?;
 
     let mut fnargs = args[1..args.len() - 1].to_owned();
     if let Some(trail) = args.last() {
-        let trail = match engine.sexp_to_list(trail.to_owned()) {
+        let trail = match Engine::sexp_to_list(trail.to_owned()) {
             Some(it) => it,
-            None => return bad_arg_type(engine, trail.to_owned(), args.len() - 1, "list"),
+            None => {
+                return Err(bad_arg_type(
+                    engine,
+                    trail.to_owned(),
+                    args.len() - 1,
+                    "list",
+                ))
+            }
         };
         fnargs.extend(trail);
     }
 
     let quote = Gc::new(Expr::Symbol(engine.intern_symbol("quote")));
-    let quote = |e| engine.list_to_sexp(&[quote.clone(), e]);
+    let quote = |e| Engine::list_to_sexp(&[quote.clone(), e]);
     let fnargs = fnargs.into_iter().map(quote).collect::<Vec<_>>();
-    let fnargs = engine.list_to_sexp(&fnargs[..]);
+    let fnargs = Engine::list_to_sexp(&fnargs[..]);
     let full_call = Expr::Pair(quote(args[0].to_owned()), fnargs);
-    engine.eval(env, Gc::new(full_call))
+    engine.eval_inner(env, Gc::new(full_call))
 }

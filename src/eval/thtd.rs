@@ -1,14 +1,15 @@
 //! Ruth's thtandard library.
 
+mod control;
 mod env;
 mod eq;
 mod funcs;
 mod math;
-mod misc;
 mod pairs_lists;
 mod quoting;
 mod strings;
 mod symbols;
+use control::*;
 use env::*;
 use eq::*;
 use funcs::*;
@@ -22,7 +23,7 @@ use std::io::Write;
 
 use gc::{Gc, GcCell};
 
-use crate::{Engine, Expr, Namespace};
+use crate::{Engine, EvalResult, Exception, Expr, Namespace};
 
 pub fn add_thtandard_library(engine: &mut Engine) {
     let thtdlib = engine.thtdlib();
@@ -67,6 +68,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("xor", xor as _),
         // string
         ("string", to_string as _),
+        ("string-len", string_len as _),
         ("prn", prn as _),
         // list/pair
         ("cons", cons as _),
@@ -123,6 +125,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         include_str!("thtd/math.ruth"),
         include_str!("thtd/pairs_lists.ruth"),
         include_str!("thtd/misc.ruth"),
+        include_str!("thtd/eq.ruth"),
+        include_str!("thtd/control.ruth"),
     ] {
         engine.read_eval(source, "<thtdlib>".to_owned()).unwrap();
     }
@@ -135,7 +139,7 @@ pub fn check_argc(
     args: &[Gc<Expr>],
     min: usize,
     max: usize,
-) -> Result<(), Gc<Expr>> {
+) -> Result<(), Exception> {
     if !(min..=max).contains(&args.len()) {
         let msg = if min == max {
             format!("expected exactly {} args but got {}", min, args.len())
@@ -147,36 +151,36 @@ pub fn check_argc(
                 args.len()
             )
         };
-        let data = engine.list_to_sexp(&[
+        let data = Engine::list_to_sexp(&[
             Gc::new(Expr::Integer(min as _)),
             Gc::new(Expr::Integer(max as _)),
             Gc::new(Expr::Integer(args.len() as _)),
         ]);
-        Err(engine.make_err(msg, Some(data)))
+        Err(engine.make_err("application/argc", msg, Some(data)))
     } else {
         Ok(())
     }
 }
 
-pub fn check_min_argc(engine: &mut Engine, args: &[Gc<Expr>], min: usize) -> Result<(), Gc<Expr>> {
+pub fn check_min_argc(engine: &mut Engine, args: &[Gc<Expr>], min: usize) -> Result<(), Exception> {
     if min > args.len() {
         let msg = format!("expected {} args or more but got {}", min, args.len());
-        let data = engine.list_to_sexp(&[
+        let data = Engine::list_to_sexp(&[
             Gc::new(Expr::Integer(min as _)),
             Gc::new(Expr::Integer(args.len() as _)),
         ]);
-        Err(engine.make_err(msg, Some(data)))
+        Err(engine.make_err("application/min-argc", msg, Some(data)))
     } else {
         Ok(())
     }
 }
 
-pub fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) -> Gc<Expr> {
+pub fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) -> Exception {
     let msg = format!("in argument #{}, expected {}", idx, want);
-    let data = engine.list_to_sexp(&[
+    let data = Engine::list_to_sexp(&[
         Gc::new(Expr::Integer(idx as _)),
         Gc::new(Expr::String(want.to_string())),
         arg,
     ]);
-    engine.make_err(msg, Some(data))
+    engine.make_err("application/arg-type", msg, Some(data))
 }

@@ -4,11 +4,19 @@ use super::*;
 use crate::eval::TailRec;
 use crate::Expr;
 
-pub fn define(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+pub fn define(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
     define_internals(engine, env, args, true)
 }
 
-pub fn define_macro(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> TailRec {
+pub fn define_macro(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
     define_internals(engine, env, args, false)
 }
 
@@ -17,20 +25,16 @@ fn define_internals(
     env: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
     is_lambda: bool,
-) -> TailRec {
-    if let Err(e) = check_min_argc(engine, args, 2) {
-        return TailRec::Exit(e);
-    }
+) -> Result<TailRec, Exception> {
+    check_min_argc(engine, args, 2)?;
 
     let first = args[0].to_owned();
     if let Expr::Symbol(id) = &*first {
-        if let Err(e) = check_argc(engine, args, 2, 2) {
-            return TailRec::Exit(e);
-        }
+        check_argc(engine, args, 2, 2)?;
 
-        let evaled = engine.eval(env.to_owned(), args[1].to_owned());
+        let evaled = engine.eval_inner(env.to_owned(), args[1].to_owned())?;
         env.borrow_mut().insert(*id, evaled);
-        TailRec::Exit(Gc::new(Expr::Nil))
+        Ok(TailRec::Exit(Gc::new(Expr::Nil)))
     } else if let Expr::Pair(name, tail) = &*first {
         // > (define (NAME . TAIL) BODY*) becomes (define NAME (lambda TAIL BODY*))
         // --alwinfy
@@ -38,10 +42,10 @@ fn define_internals(
         let lambda_name = engine.intern_symbol(if is_lambda { "lambda" } else { "macro" });
         let mut lambda_list = vec![Gc::new(Expr::Symbol(lambda_name)), tail.to_owned()];
         lambda_list.extend_from_slice(&args[1..]);
-        let lambda_sexpr = engine.list_to_sexp(&lambda_list);
+        let lambda_sexpr = Engine::list_to_sexp(&lambda_list);
 
         if !matches!(&**name, Expr::Symbol(..)) {
-            return TailRec::Exit(bad_arg_type(engine, first, 0, "(symbol, any)"));
+            return Err(bad_arg_type(engine, first, 0, "(symbol, any)"));
         }
 
         let define_name = engine.intern_symbol("define");
@@ -50,13 +54,17 @@ fn define_internals(
             name.to_owned(),
             lambda_sexpr,
         ];
-        TailRec::TailRecur(engine.list_to_sexp(define_list), env)
+        Ok(TailRec::TailRecur(Engine::list_to_sexp(define_list), env))
     } else {
-        TailRec::Exit(bad_arg_type(engine, args[0].clone(), 0, "symbol"))
+        Err(bad_arg_type(engine, args[0].clone(), 0, "symbol"))
     }
 }
 
-pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr>]) -> TailRec {
+pub fn let_(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    mut args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
     let inner_env = Gc::new(GcCell::new(Namespace::new(env.clone())));
 
     let symbol = match args.get(0).map(|s| &**s) {
@@ -67,14 +75,12 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
         _ => None,
     };
 
-    if let Err(ono) = check_min_argc(engine, args, 2) {
-        return TailRec::Exit(ono);
-    }
+    check_min_argc(engine, args, 2)?;
 
-    let arg_bindings = match engine.sexp_to_list(args[0].to_owned()) {
+    let arg_bindings = match Engine::sexp_to_list(args[0].to_owned()) {
         Some(it) => it,
         None => {
-            return TailRec::Exit(bad_arg_type(
+            return Err(bad_arg_type(
                 engine,
                 args[0].to_owned(),
                 0,
@@ -86,10 +92,10 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
     let mut names = vec![];
     let mut evaluated = vec![];
     for binding in arg_bindings {
-        if let Some(pair) = engine.sexp_to_list(binding) {
+        if let Some(pair) = Engine::sexp_to_list(binding) {
             if let [name, expr] = pair.as_slice() {
                 if let Expr::Symbol(id) = **name {
-                    let evaled = engine.eval(inner_env.clone(), expr.to_owned());
+                    let evaled = engine.eval_inner(inner_env.clone(), expr.to_owned())?;
                     inner_env.borrow_mut().insert(id, evaled.clone());
                     names.push((id, None));
                     evaluated.push(evaled);
@@ -97,7 +103,7 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
                 }
             }
         }
-        return TailRec::Exit(bad_arg_type(
+        return Err(bad_arg_type(
             engine,
             args[0].to_owned(),
             0,
@@ -117,17 +123,20 @@ pub fn let_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, mut args: &[Gc<Expr
                 variadic: false,
             });
             scope.borrow_mut().insert(s, lambda.clone());
-            TailRec::Exit(apply(
+            Ok(TailRec::Exit(apply(
                 engine,
                 scope,
-                &[lambda, engine.list_to_sexp(&evaluated)],
-            ))
+                &[lambda, Engine::list_to_sexp(&evaluated)],
+            )?))
         }
         None => {
             for body in &args[1..args.len() - 1] {
-                engine.eval(inner_env.clone(), body.to_owned());
+                engine.eval_inner(inner_env.clone(), body.to_owned())?;
             }
-            TailRec::TailRecur(args.last().unwrap().to_owned(), inner_env)
+            Ok(TailRec::TailRecur(
+                args.last().unwrap().to_owned(),
+                inner_env,
+            ))
         }
     }
 }

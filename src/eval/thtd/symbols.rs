@@ -1,36 +1,40 @@
 //! Manipulating symbols
 use super::*;
 
-pub fn symbol2string(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-    if let Err(ono) = check_argc(engine, args, 1, 1) {
-        return ono;
-    };
+pub fn symbol2string(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
 
     let arg = args[0].to_owned();
     let sym = if let Expr::Symbol(sym) = &*arg {
         *sym
     } else {
-        return bad_arg_type(engine, arg, 0, "symbol");
+        return Err(bad_arg_type(engine, arg, 0, "symbol"));
     };
     let string = engine
         .get_symbol_str(sym)
         .unwrap_or("<unknown>")
         .to_string();
-    Gc::new(Expr::String(string))
+    Ok(Gc::new(Expr::String(string)))
 }
 
-pub fn string2symbol(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Gc<Expr> {
-    if let Err(ono) = check_argc(engine, args, 1, 1) {
-        return ono;
-    };
+pub fn string2symbol(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
 
     let arg = args[0].to_owned();
     let string = if let Expr::String(s) = &*arg {
         s
     } else {
-        return bad_arg_type(engine, arg, 0, "symbol");
+        return Err(bad_arg_type(engine, arg, 0, "symbol"));
     };
     let sym = engine.intern_symbol(string);
 
-    Gc::new(Expr::Symbol(sym))
+    Ok(Gc::new(Expr::Symbol(sym)))
 }

@@ -1,4 +1,4 @@
-use crate::{Engine, Expr, Namespace};
+use crate::{Engine, EvalResult, Exception, Expr, Namespace, Value};
 
 mod thtd;
 use gc::{Gc, GcCell};
@@ -8,19 +8,25 @@ pub use thtd::add_thtandard_library;
 /// Do we use tail recursion for a special form?
 pub enum TailRec {
     /// No, return this and exit
-    Exit(Gc<Expr>),
+    Exit(Value),
     /// Yes, eval this in the given namespace
-    TailRecur(Gc<Expr>, Gc<GcCell<Namespace>>),
+    TailRecur(Value, Gc<GcCell<Namespace>>),
 }
 
 impl Engine {
+    pub fn eval(&mut self, env: Gc<GcCell<Namespace>>, expr: Value) -> Value {
+        let result = self.eval_inner(env, expr);
+        result.unwrap_or_else(|exn| exn.into_expr(self))
+    }
+
     /// Evaluate the expression at the given location on the heap,
     /// put the result on the heap, and return it.
-    pub fn eval(&mut self, mut env: Gc<GcCell<Namespace>>, mut expr: Gc<Expr>) -> Gc<Expr> {
+    fn eval_inner(&mut self, mut env: Gc<GcCell<Namespace>>, mut expr: Gc<Expr>) -> EvalResult {
         loop {
             match self.eval_rec(env.clone(), expr) {
-                TailRec::Exit(val) => break val,
-                TailRec::TailRecur(next, nenv) => {
+                Ok(TailRec::Exit(val)) => break Ok(val),
+                Err(ono) => break Err(ono),
+                Ok(TailRec::TailRecur(next, nenv)) => {
                     expr = next;
                     env = nenv;
                 }
@@ -28,7 +34,11 @@ impl Engine {
         }
     }
     /// Helper function that either returns Err(next expr) or Ok(final result)
-    fn eval_rec(&mut self, env: Gc<GcCell<Namespace>>, expr: Gc<Expr>) -> TailRec {
+    fn eval_rec(
+        &mut self,
+        env: Gc<GcCell<Namespace>>,
+        expr: Gc<Expr>,
+    ) -> Result<TailRec, Exception> {
         match &*expr {
             // Passthru literals unchanged
             Expr::Integer(_)
@@ -37,29 +47,30 @@ impl Engine {
             | Expr::String(_)
             | Expr::SpecialForm { .. }
             | Expr::NativeProcedure { .. }
-            | Expr::Procedure { .. } => TailRec::Exit(expr),
+            | Expr::Procedure { .. } => Ok(TailRec::Exit(expr)),
             // Lookup the symbol
             &Expr::Symbol(id) => {
                 let idx = env.borrow().lookup(id);
-                let res = match idx {
-                    Some(it) => it,
-                    None => self.make_err(
+                match idx {
+                    Some(it) => Ok(TailRec::Exit(it)),
+                    None => Err(self.make_err(
+                        "application/undefined",
                         format!(
                             "application: '{} is undefined",
                             self.write_expr(expr.clone())
                         ),
                         Some(expr),
-                    ),
-                };
-                TailRec::Exit(res)
+                    )),
+                }
             }
             Expr::Pair(car, cdr) => {
-                let car = self.eval(env.clone(), car.clone());
+                let car = self.eval_inner(env.clone(), car.clone())?;
 
-                let args = match self.sexp_to_list(cdr.clone()) {
+                let args = match Engine::sexp_to_list(cdr.clone()) {
                     Some(it) => it,
                     None => {
-                        return TailRec::Exit(self.make_err(
+                        return Err(self.make_err(
+                            "application/cdr-list",
                             "application: cdr must be a proper list".to_string(),
                             Some(cdr.clone()),
                         ))
@@ -70,10 +81,10 @@ impl Engine {
                     &Expr::NativeProcedure { func, .. } => {
                         let evaled_args = args
                             .into_iter()
-                            .map(|expr| self.eval(env.clone(), expr))
-                            .collect::<Vec<_>>();
+                            .map(|expr| self.eval_inner(env.clone(), expr))
+                            .collect::<Result<Vec<_>, _>>()?;
 
-                        TailRec::Exit(func(self, env, &evaled_args))
+                        func(self, env, &evaled_args).map(TailRec::Exit)
                     }
                     Expr::Procedure {
                         args: arg_names,
@@ -91,8 +102,8 @@ impl Engine {
                             args
                                 // eval args for a function call
                                 .into_iter()
-                                .map(|arg| self.eval(env.clone(), arg))
-                                .collect::<Vec<_>>()
+                                .map(|arg| self.eval_inner(env.clone(), arg))
+                                .collect::<Result<Vec<_>, _>>()?
                         } else {
                             // let them be for a macro
                             args
@@ -102,13 +113,10 @@ impl Engine {
                             .iter()
                             .filter(|(_, default)| default.is_none())
                             .count();
-                        let argc_checker = if *variadic {
-                            thtd::check_min_argc(self, &args_passed, minimum_argc - 1)
+                        if *variadic {
+                            thtd::check_min_argc(self, &args_passed, minimum_argc - 1)?;
                         } else {
-                            thtd::check_argc(self, &args_passed, minimum_argc, args_passed.len())
-                        };
-                        if let Err(ono) = argc_checker {
-                            return TailRec::Exit(ono);
+                            thtd::check_argc(self, &args_passed, minimum_argc, args_passed.len())?;
                         }
 
                         for (idx, arg_default) in
@@ -127,7 +135,7 @@ impl Engine {
                             };
                             if *variadic && idx == arg_names.len() - 1 {
                                 // This is the trail arg
-                                let trail = self.list_to_sexp(&args_passed[idx..]);
+                                let trail = Engine::list_to_sexp(&args_passed[idx..]);
                                 arg_env.insert(symbol, trail);
                                 break; // Break to prevent the next iteration from "running out" of args
                             } else {
@@ -148,26 +156,28 @@ impl Engine {
                         let (body, tail) = match &body[..] {
                             [body @ .., tail] => (body, tail),
                             [] => {
-                                return TailRec::Exit(self.make_err(
+                                return Err(self.make_err(
+                                    "application/no-body",
                                     "application: had a procedure with no body sexprs".to_string(),
                                     None,
-                                ))
+                                ));
                             }
                         };
                         for expr in body {
-                            self.eval(body_env.clone(), expr.clone());
+                            self.eval_inner(body_env.clone(), expr.clone())?;
                         }
                         let last = if closed_env.is_some() {
                             tail.to_owned()
                         } else {
-                            //println!("{:?}", arg_env);
-                            self.eval(arg_env.clone(), tail.clone())
+                            self.eval_inner(arg_env.clone(), tail.clone())?
                         };
-                        TailRec::TailRecur(last, arg_env)
+                        Ok(TailRec::TailRecur(last, arg_env))
                     }
-                    _ => TailRec::Exit(
-                        self.make_err("application: not a procedure".to_string(), Some(car)),
-                    ),
+                    _ => Err(self.make_err(
+                        "application/not-callable",
+                        "application: not callable".to_string(),
+                        Some(car),
+                    )),
                 }
             }
         }

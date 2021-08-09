@@ -1,10 +1,18 @@
 (define (add1 x) (+ x 1))
 (define (sub1 x) (- x 1))
 
-(define-macro (cond . bodies)
-  (if bodies
-    (let ([test (car bodies)])
-      `(if ,(first test)
-        ,(second test)
-        (cond . ,(cdr bodies))))
-    '(! "did not find a true condition" '())))
+(define (positive? x) (> x 0))
+(define (negative? x) (< x 0))
+(define (zero? x)     (= x 0))
+(define <0 positive)
+(define >0 negative)
+(define =0 zero)
+(define (<=0 x) (<= x 0))
+(define (>=0 x) (>= x 0))
+
+; If x is `callable?`, compose `not` with it.
+; Otherwise return `(not x)`
+(define (~ x)
+  (if (callable? x)
+    (\ (y) (not (x y)))
+    (not x)))
