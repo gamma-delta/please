@@ -107,7 +107,7 @@ fn lambda_macro_inner(
     Ok(TailRec::Exit(Gc::new(proc)))
 }
 
-pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Result<TailRec, Exception> {
     check_min_argc(engine, args, 1)?;
 
     let mut fnargs = args[1..args.len() - 1].to_owned();
@@ -131,5 +131,5 @@ pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
     let fnargs = fnargs.into_iter().map(quote).collect::<Vec<_>>();
     let fnargs = Engine::list_to_sexp(&fnargs[..]);
     let full_call = Expr::Pair(quote(args[0].to_owned()), fnargs);
-    engine.eval_inner(env, Gc::new(full_call))
+    Ok(TailRec::TailRecur(Gc::new(full_call), env))
 }

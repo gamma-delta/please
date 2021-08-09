@@ -86,8 +86,11 @@ impl Engine {
                             .map(|expr| self.eval_inner(env.clone(), expr))
                             .collect::<Result<Vec<_>, _>>()?;
 
-                        func(self, env, &evaled_args)
-                            .map(TailRec::Exit)
+                        let result = match func {
+                            Ok(func) => func(self, env, &evaled_args).map(TailRec::Exit),
+                            Err(tailfunc) => tailfunc(self, env, &evaled_args),
+                        };
+                        result
                             .map_err(|mut e| {
                                 e.call_trace.trace.push(Some(name));
                                 e

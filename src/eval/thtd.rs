@@ -55,8 +55,6 @@ pub fn add_thtandard_library(engine: &mut Engine) {
     for (name, native_func) in [
         // quoting
         ("eval", eval as _),
-        // functions
-        ("apply", apply as _),
         // math
         ("+", add as _),
         ("-", sub as _),
@@ -112,7 +110,17 @@ pub fn add_thtandard_library(engine: &mut Engine) {
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
-            func: native_func,
+            func: Ok(native_func),
+            name: symbol,
+        });
+        thtdlib.borrow_mut().insert(symbol, handle);
+    }
+    for (name, tail_func) in [
+        ("apply", apply as _),
+    ] {
+        let symbol = engine.intern_symbol(name);
+        let handle = Gc::new(Expr::NativeProcedure {
+            func: Err(tail_func),
             name: symbol,
         });
         thtdlib.borrow_mut().insert(symbol, handle);
