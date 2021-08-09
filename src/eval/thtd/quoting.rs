@@ -20,34 +20,65 @@ pub fn quasiquote(
     check_argc(engine, args, 1, 1)?;
 
     let arg = args[0].to_owned();
-    Ok(TailRec::Exit(quasi_helper(engine, env, arg)?))
+    Ok(TailRec::Exit(quasi_helper(engine, env, arg, None)?))
 }
 
-fn quasi_helper(engine: &mut Engine, env: Gc<GcCell<Namespace>>, arg: Gc<Expr>) -> EvalResult {
+fn quasi_helper(engine: &mut Engine, env: Gc<GcCell<Namespace>>, arg: Gc<Expr>, pcdr: Option<Gc<Expr>>) -> EvalResult {
     let unquote = engine.find_symbol("unquote").unwrap();
+    let unquote_splice = engine.find_symbol("unquote-splicing").unwrap();
     match &*arg {
         Expr::Pair(..) | Expr::LazyPair(..) => {
             let (car, cdr) = engine.split_cons(arg)?;
-            if matches!(&*car, Expr::Symbol(sym) if *sym == unquote) {
-                let actual_cdr = match &*cdr {
-                    Expr::Pair(..) | Expr::LazyPair(..) => {
-                        let (car, cdr) = engine.split_cons(cdr.clone())?;
-                        if let Expr::Nil = &*cdr {
-                            car
-                        } else {
-                            return Err(bad_arg_type(engine, cdr, 1, "1-list"));
+            match &*car {
+                Expr::Symbol(sym) if *sym == unquote => {
+                    let actual_cdr = match &*cdr {
+                        Expr::Pair(..) | Expr::LazyPair(..) => {
+                            let (car, cdr) = engine.split_cons(cdr.clone())?;
+                            if let Expr::Nil = &*cdr {
+                                car
+                            } else {
+                                return Err(bad_arg_type(engine, cdr, 1, "1-list"));
+                            }
                         }
+                        _ => return Err(bad_arg_type(engine, cdr, 1, "1-list")),
+                    };
+                    engine.eval_inner(env, actual_cdr)
+                }
+                Expr::Symbol(sym) if *sym == unquote_splice => {
+                    match pcdr {
+                        Some(exp) => {
+                            let actual_cdr = match &*cdr {
+                                Expr::Pair(..) | Expr::LazyPair(..) => {
+                                    let (car, cdr) = engine.split_cons(cdr.clone())?;
+                                    if let Expr::Nil = &*cdr {
+                                        car
+                                    } else {
+                                        return Err(bad_arg_type(engine, cdr, 1, "1-list"));
+                                    }
+                                }
+                                _ => return Err(bad_arg_type(engine, cdr, 1, "1-list")),
+                            };
+                            let sexp = engine.eval_inner(env.clone(), actual_cdr.clone())?;
+                            let list = engine.sexp_to_list(sexp)?.ok_or_else(|| bad_arg_type(engine, actual_cdr, 1, "list"))?;
+                            let last = quasi_helper(engine, env, exp, None)?;
+                            Ok(Engine::list_to_improper_sexp(&list[..], last))
+                        },
+                        None => return Err(engine.make_err(
+                            "quote/bad-splice",
+                            "used unquote-splice in illegal position".to_string(),
+                            None,
+                        )),
                     }
-                    _ => return Err(bad_arg_type(engine, cdr, 1, "1-list")),
-                };
-                engine.eval_inner(env, actual_cdr)
-            } else {
-                let car = quasi_helper(engine, env.clone(), car)?;
-                let cdr = quasi_helper(engine, env, cdr)?;
-                Ok(Gc::new(Expr::Pair(car, cdr)))
+                }
+                _ => {
+                    quasi_helper(engine, env.clone(), car, Some(cdr))
+                }
             }
-        }
-        _ => Ok(arg),
+        },
+        _ => Ok(match pcdr {
+            Some(cdr) => Gc::new(Expr::Pair(arg, quasi_helper(engine, env, cdr, None)?)),
+            None => arg,
+        })
     }
 }
 

@@ -459,11 +459,16 @@ impl Engine {
 
     /// Create a cons list from the given list, and return its head.
     pub fn list_to_sexp(list: &[Gc<Expr>]) -> Gc<Expr> {
-        if let Some((car, cdr)) = list.split_first() {
-            Gc::new(Expr::Pair(car.clone(), Self::list_to_sexp(cdr)))
-        } else {
-            Gc::new(Expr::Nil)
+        Engine::list_to_improper_sexp(list, Gc::new(Expr::Nil))
+    }
+
+    /// Create a cons list from the given list, and return its head.
+    pub fn list_to_improper_sexp(mut list: &[Gc<Expr>], mut last: Gc<Expr>) -> Gc<Expr> {
+        while let [head @ .., tail] = list {
+            list = head;
+            last = Gc::new(Expr::Pair(tail.clone(), last));
         }
+        last
     }
 
     pub fn is_truthy(&self, expr: Gc<Expr>) -> bool {
