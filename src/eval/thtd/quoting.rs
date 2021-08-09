@@ -47,8 +47,12 @@ fn quasi_helper(
                         }
                         _ => return Err(bad_arg_type(engine, cdr, 1, "1-list")),
                     };
-                    let res = engine.eval_inner(env, actual_cdr)?;
-                    Ok(Gc::new(Expr::Pair(res, Gc::new(Expr::Nil))))
+                    let res = engine.eval_inner(env.clone(), actual_cdr)?;
+                    let expr = match pcdr {
+                        Some(cdr) => Gc::new(Expr::Pair(res, quasi_helper(engine, env, cdr, None)?)),
+                        None => res,
+                    };
+                    Ok(expr)
                 }
                 Expr::Symbol(sym) if *sym == unquote_splice => match pcdr {
                     Some(exp) => {
