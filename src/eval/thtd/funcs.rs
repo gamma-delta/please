@@ -57,7 +57,7 @@ fn lambda_macro_inner(
                         "list of symbols or (symbol default)s",
                     ));
                 };
-                let default = match engine.sexp_to_list(cdr.to_owned())? {
+                let default = match engine.sexp_to_list(cdr)? {
                     Some(it) => it,
                     None => {
                         return Err(bad_arg_type(

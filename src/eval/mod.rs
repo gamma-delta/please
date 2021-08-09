@@ -74,7 +74,7 @@ impl Engine {
                         return Err(self.make_err(
                             "application/cdr-list",
                             "application: cdr must be a proper list".to_string(),
-                            Some(cdr.clone()),
+                            Some(cdr),
                         ))
                     }
                 };

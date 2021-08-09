@@ -158,18 +158,18 @@ impl Engine {
                             Expr::Pair(..) | Expr::LazyPair(..) => {
                                 let (cdar, cddr) = engine.split_cons(cdr).unwrap();
                                 write!(w, " ")?;
-                                write_list(engine, w, cdar.to_owned(), cddr.to_owned())
+                                write_list(engine, w, cdar, cddr)
                             }
                             // Just a pair
                             _ => {
                                 write!(w, " . ")?;
-                                recur(engine, w, cdr.to_owned())
+                                recur(engine, w, cdr)
                             }
                         }
                     }
 
                     write!(w, "(")?;
-                    write_list(engine, w, car.clone(), cdr.clone())?;
+                    write_list(engine, w, car, cdr)?;
                     write!(w, ")")
                 }
                 Expr::Nil => {
@@ -284,7 +284,7 @@ impl Engine {
                             Expr::Pair(..) | Expr::LazyPair(..) => {
                                 let (cdar, cddr) = engine.split_cons(cdr).unwrap();
                                 write!(w, " ")?;
-                                write_list(engine, w, cdar.to_owned(), cddr.to_owned())
+                                write_list(engine, w, cdar, cddr)
                             }
                             // Just a pair
                             _ => {
@@ -295,7 +295,7 @@ impl Engine {
                     }
 
                     write!(w, "(")?;
-                    write_list(engine, w, car.clone(), cdr.clone())?;
+                    write_list(engine, w, car, cdr)?;
                     write!(w, ")")
                 }
                 Expr::Nil => {
@@ -419,7 +419,7 @@ impl Engine {
     pub fn split_cons(&mut self, expr: Gc<Expr>) -> Result<(Gc<Expr>, Gc<Expr>), Exception> {
         match self.split_cons_verb(expr.clone())? {
             Some(pair) => Ok(pair),
-            None => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair"))?,
+            None => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
         }
     }
     /// Reify an expr by evaluating all contained LazyExprCells.
