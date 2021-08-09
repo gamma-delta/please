@@ -14,11 +14,11 @@ X juxt
 
 (define (for fn list)
   (if list
-    (cons (fn (car list)) (for fn (cdr list)))
+    (lazy-cons (fn (car list)) (for fn (cdr list)))
     ()))
 
 (define (fold fn acc . lists)
-  (and lists
+  (if lists
     ; still have leftover list
     (fold fn
       (apply fn acc (for car lists))
@@ -27,18 +27,15 @@ X juxt
     acc))
 
 (define (map fn . rows)
-  (let (
-    [col-heads (for rows car)]
-    [col-tails (for rows cdr)])
-    (if (apply and rows)
-      (cons (apply fn col-heads) (apply map fn col-tails))
-      ())))
+  (if (apply and rows)
+    (lazy-cons (apply fn (for rows car)) (apply map fn (for rows cdr)))
+    ())))
 
 (define (filter fn list)
   (and list
     (if (fn (car list))
       ; it passes, put the original on and cons on the rest
-      (cons (car list) (filter fn (cdr list))
+      (lazy-cons (car list) (filter fn (cdr list))
       ; ignore and just pass the rest
       (filter fn (cdr list))))))
 
@@ -87,6 +84,6 @@ X juxt
   (if end
     (let loop ([n start])
       (if (< n end)
-        (cons n (loop (add1 n)))
+        (lazy-cons n (loop (add1 n)))
         ()))
     (range 0 start)))

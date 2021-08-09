@@ -9,8 +9,8 @@
 (define (append l x) 
   (let ([head (car l)] [tail (cdr l)])
     (if tail
-      (cons head (append tail x))
-      (cons head x))))
+      (lazy-cons head (append tail x))
+      (lazy-cons head x))))
 
 (define (extend l . rest) (append l rest)) ; auto-list
 
@@ -37,7 +37,7 @@
 (define (take l n) 
   (if (<=0 n)
     ()
-    (cons (car l) (take (cdr l) (sub1 n)))))
+    (lazy-cons (car l) (take (cdr l) (sub1 n)))))
 
 ; Skip the first `n` elements of `l`
 (define (leave l n)
