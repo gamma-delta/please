@@ -36,6 +36,13 @@ impl Num {
             Num::Float(float) => float,
         }
     }
+
+    fn to_string(self) -> String {
+        match self {
+            Num::Int(int) => int.to_string(),
+            Num::Float(float) => float.to_string(),
+        }
+    }
 }
 
 macro_rules! num_ops {
@@ -112,11 +119,27 @@ pub fn div(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
             Num::Int(i) => i as f64,
             Num::Float(f) => f,
         };
-        return Ok(Num::Float(q.recip()).to_expr());
+        return if q == 0.0 {
+            Err(engine.make_err(
+                "arithmetic/div-by-zero",
+                format!("cannot divide {} by zero", q),
+                Some(Gc::new(Expr::Float(q))),
+            ))
+        } else {
+            Ok(Num::Float(q.recip()).to_expr())
+        };
     }
 
     for (idx, arg) in args.iter().enumerate().skip(1) {
-        quotient = quotient / Num::from_expr(engine, arg.to_owned(), idx)?;
+        let rhs = Num::from_expr(engine, arg.to_owned(), idx)?;
+        if rhs.as_float() == 0.0 {
+            return Err(engine.make_err(
+                "arithmetic/div-by-zero",
+                format!("cannot divide {} by zero", rhs.to_string()),
+                Some(rhs.to_expr()),
+            ));
+        }
+        quotient = quotient / rhs;
     }
 
     Ok(quotient.to_expr())
@@ -127,6 +150,14 @@ pub fn rem(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
 
     let dividend = Num::from_expr(engine, args[0].to_owned(), 0)?;
     let divisor = Num::from_expr(engine, args[1].to_owned(), 1)?;
+
+    if divisor.as_float() == 0.0 {
+        return Err(engine.make_err(
+            "arithmetic/div-by-zero",
+            format!("cannot divide {} by zero", divisor.to_string()),
+            Some(divisor.to_expr()),
+        ));
+    }
 
     let rem = dividend % divisor;
     Ok(rem.to_expr())
@@ -185,7 +216,7 @@ pub fn to_inexact(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr
 macro_rules! bitwise {
     (($name:ident $op:tt)) => {
         pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
-            check_argc(engine, args, 1, 1)?;
+            check_argc(engine, args, 2, 2)?;
 
             let lhs = match &*args[0] {
                 Expr::Integer(it) => *it,
@@ -225,7 +256,7 @@ pub fn bitwise_shift(
     _: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
 ) -> EvalResult {
-    check_argc(engine, args, 1, 1)?;
+    check_argc(engine, args, 2, 2)?;
 
     let lhs = match &*args[0] {
         Expr::Integer(it) => *it,

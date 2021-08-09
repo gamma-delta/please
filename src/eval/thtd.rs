@@ -34,6 +34,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("quote", quote as _),
         ("quasiquote", quasiquote as _),
         ("unquote", unquote as _),
+        ("unquote-splicing", unquote_splicing as _),
         ("define", define as _),
         ("define-macro", define_macro as _),
         ("lambda", lambda as _),
@@ -115,9 +116,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         });
         thtdlib.borrow_mut().insert(symbol, handle);
     }
-    for (name, tail_func) in [
-        ("apply", apply as _),
-    ] {
+    for (name, tail_func) in [("apply", apply as _)] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
             func: Err(tail_func),
@@ -154,6 +153,8 @@ fn load_thtd_lib(engine: &mut Engine) -> EvalResult {
     let nil_out = Ok(Gc::new(Expr::Nil));
     let thtd_path = Path::new(THTD_LIB_ROOT);
 
+    let mut paths = Vec::new();
+
     let mut todo = vec![thtd_path.to_path_buf()];
     while let Some(path) = todo.pop() {
         if path.is_dir() {
@@ -163,11 +164,25 @@ fn load_thtd_lib(engine: &mut Engine) -> EvalResult {
                 todo.push(path)
             }
         } else {
-            // Run the callback
-            let name = path.to_string_lossy().into_owned();
-            let source = fs::read_to_string(&name).unwrap();
-            let res = engine.read_eval(&source, name.to_owned());
-            if let Err(e) = res {
+            paths.push(path);
+        }
+    }
+
+    paths.sort_unstable();
+
+    for path in paths {
+        // Run the callback
+        let name = path.to_string_lossy().into_owned();
+        let source = fs::read_to_string(&name).unwrap();
+        let res = engine.read_eval(&source, name.to_owned());
+        match res {
+            Ok(it) => {
+                if !matches!(&*it, Expr::Nil) {
+                    println!("{}", engine.write_expr(it).unwrap());
+                    return nil_out;
+                }
+            }
+            Err(e) => {
                 e.report()
                     .eprint(ariadne::sources(std::iter::once((name, source))))
                     .unwrap();

@@ -1,17 +1,5 @@
 ; Composing and mapping functions
 
-;*
-X map
-X filter
-X compose
-X identity
-X const
-X negate
-X conjoin
-X disjoin
-X juxt
-*;
-
 (define (for fn list)
   (if list
     (lazy-cons (fn (car list)) (for fn (cdr list)))
@@ -73,6 +61,23 @@ X juxt
   (lambda newargs
     (apply fn (append newargs args))))
 
+;*
+(define-macro (brooks . body)
+  (let (
+    [flankers (split-around '_ body)])
+    (cond
+      ; put the threadee between the flankers
+      [flankers `(\ newargs (eval 
+        (append ; both are lists  
+          (append ',(car flankers) newargs) ; append because newargs is a list
+          ',(cdr flankers))))]
+      ; put the threadee after the first argument (the function, probably)
+      [true `(\ newargs (eval
+        (cons 
+          ',(car body) 
+          (cons newargs ',(cdr body)))))])))
+*;
+
 (define (all fn list) 
   (if list
     (and (fn (car list)) (all fn (cdr list)))
@@ -87,11 +92,12 @@ X juxt
 
 (define \ lambda)
 (define fn lambda)
+(define-macro (\@ . bodies) `(lambda (@) ,bodies))
 
-(define (range start [end false])
+(define (range [start 'never] [end false])
   (if end
     (let loop ([n start])
-      (if (< n end)
+      (if (or (equal? end 'never) (< n end))
         (lazy-cons n (loop (add1 n)))
         ()))
     (range 0 start)))

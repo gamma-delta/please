@@ -72,8 +72,8 @@ pub fn prn(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
         println!("{}", out);
     } else {
         print!("{}", out);
-        std::io::stdout().flush().unwrap();
     }
+    std::io::stdout().flush().unwrap();
 
-    Ok(Gc::new(Expr::Nil))
+    Ok(args[0].to_owned())
 }

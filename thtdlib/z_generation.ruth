@@ -1,0 +1,30 @@
+; Generate functions using macros.
+; the `z_` name is because files are evaled in alphabetical order...
+; this is garbage garbage code but it works. fite me.
+
+(define-macro (car-family len)
+  (let (
+    [len (eval len)] ; altho we're passing a literal w/e
+    [gen-count (** 2 len)]
+    ; Generates the (true false ...) list from the code
+    [picker-gen (\ (code t f) 
+      (for (\ (bitidx) 
+        (if (>0 (bitand code (bitshift 1 bitidx)))
+          t
+          f))
+      (range len)))]
+    ; all the ad lists
+    [ads (for (\ (code) (picker-gen code "a" "d")) (range gen-count))]
+    [ca/drs (for (\ (code) (picker-gen code car cdr)) (range gen-count))])
+    ; fold for the lockstepping
+    (map 
+      (\ (ad ca/dr) 
+        (prn (string (string ad) (string ca/dr))))
+      ads ca/drs)))
+
+(define-macro (make-car-family max) 
+  (let ([max (eval max)])
+    (if (> max 2)
+      `(do (car-family ,max))
+      ())))
+(make-car-family 3)
