@@ -132,31 +132,22 @@ pub fn let_(
 
     // Now eval the bodies
     // skip the last for tail positioning
-    match symbol {
-        Some(s) => {
-            let scope = Gc::new(GcCell::new(Namespace::new(env)));
-            let lambda = Gc::new(Expr::Procedure {
-                args: names,
-                body: args[1..].to_vec(),
-                env: Some(scope.clone()),
-                variadic: false,
-                name: Some(s),
-            });
-            scope.borrow_mut().insert(s, lambda.clone());
-            Ok(TailRec::Exit(apply(
-                engine,
-                scope,
-                &[lambda, Engine::list_to_sexp(&evaluated)],
-            )?))
-        }
-        None => {
-            for body in &args[1..args.len() - 1] {
-                engine.eval_inner(inner_env.clone(), body.to_owned())?;
-            }
-            Ok(TailRec::TailRecur(
-                args.last().unwrap().to_owned(),
-                inner_env,
-            ))
-        }
+    if let Some(s) = symbol {
+        let lambda = Gc::new(Expr::Procedure {
+            args: names,
+            body: args[1..].to_vec(),
+            env: Some(inner_env.clone()),
+            variadic: false,
+            name: Some(s),
+        });
+        inner_env.borrow_mut().insert(s, lambda.clone());
     }
+
+    for body in &args[1..args.len() - 1] {
+        engine.eval_inner(inner_env.clone(), body.to_owned())?;
+    }
+    Ok(TailRec::TailRecur(
+        args.last().unwrap().to_owned(),
+        inner_env,
+    ))
 }
