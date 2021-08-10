@@ -31,11 +31,7 @@ fn quasi_helper(
 ) -> EvalResult {
     let unquote = engine.find_symbol("unquote").unwrap();
     let unquote_splice = engine.find_symbol("unquote-splicing").unwrap();
-    let cdr_cope = |engine, arg| match pcdr.clone() {
-        Some(cdr) => Ok(Gc::new(Expr::Pair(arg, quasi_helper(engine, env.clone(), cdr, None)?))),
-        None => Ok(arg),
-    };
-    match &*arg {
+    let arg = match &*arg {
         Expr::Pair(..) | Expr::LazyPair(..) => {
             let (car, cdr) = engine.split_cons(arg)?;
             match &*car {
@@ -51,10 +47,9 @@ fn quasi_helper(
                         }
                         _ => return Err(bad_arg_type(engine, cdr, 1, "1-list")),
                     };
-                    let res = engine.eval_inner(env.clone(), actual_cdr)?;
-                    cdr_cope(engine, res)
+                    engine.eval_inner(env.clone(), actual_cdr)?
                 }
-                Expr::Symbol(sym) if *sym == unquote_splice => match pcdr {
+                Expr::Symbol(sym) if *sym == unquote_splice => return match pcdr {
                     Some(exp) => {
                         let actual_cdr = match &*cdr {
                             Expr::Pair(..) | Expr::LazyPair(..) => {
@@ -81,13 +76,17 @@ fn quasi_helper(
                     )),
                 },
                 _ => {
-                    let last = quasi_helper(engine, env.clone(), car, Some(cdr))?;
-                    cdr_cope(engine, last)
+                    quasi_helper(engine, env.clone(), car, Some(cdr))?
                 }
             }
         }
-        _ => cdr_cope(engine, arg),
-    }
+        _ => arg,
+    };
+
+    Ok(match pcdr.clone() {
+        Some(cdr) => Gc::new(Expr::Pair(arg, quasi_helper(engine, env.clone(), cdr, None)?)),
+        None => arg,
+    })
 }
 
 pub fn unquote(
