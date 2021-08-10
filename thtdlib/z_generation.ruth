@@ -2,9 +2,8 @@
 ; the `z_` name is because files are evaled in alphabetical order...
 ; this is garbage garbage code but it works. fite me.
 
-(define-macro (car-family len)
+(define (car-family len)
   (let (
-    [len (eval len)] ; altho we're passing a literal w/e
     [gen-count (** 2 len)]
     ; Generates the (true false ...) list from the code
     [picker-gen (\ (code t f) 
@@ -21,13 +20,15 @@
       ,(map 
         (\ (ad ca/dr) 
           (prn (string ad " " ca/dr))
-          (let ([name (eval `(string "c" (unquote-splicing ad) "r"))])
-            `(define ,(string->symbol name) (lambda-> . ,ca/dr))))
+          (let ([name (eval `(string "c" ,@ad "r"))])
+            `(define ,(string->symbol name) '(lambda-> . ,ca/dr))))
         ads ca/drs))))
 
 (define-macro (make-car-family max) 
-  (let ([max (eval max)])
-    (if (> max 2)
-      (do (car-family max) (make-car-family (sub1 max)))
-      ())))
+  (if (> (eval max) 2)
+    ; force eval both this and the next macro
+    (list 
+      (car-family (eval max)) 
+      (make-car-family (sub1 (eval max))))
+    ()))
 (make-car-family 3)

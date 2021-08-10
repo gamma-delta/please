@@ -651,10 +651,8 @@ fn try_read_quote_family<'a>(
     state: &mut Engine,
 ) -> Option<ReadResult<'a, (&'static str, Expr)>> {
     let whole = whole.trim_start();
-    let quoter = whole.chars().next()?;
-    quote_shortcuts(quoter).map(|quote| {
-        let s = &whole[quoter.len_utf8()..];
-        try_read_expr(s, state).and_then(|(expr, rest)| {
+    quote_shortcuts(whole).map(|(quote, rest)| {
+        try_read_expr(rest, state).and_then(|(expr, rest)| {
             if let Some(expr) = expr {
                 Ok(((quote, expr), rest))
             } else {
@@ -668,13 +666,16 @@ fn try_read_quote_family<'a>(
     })
 }
 
-fn quote_shortcuts(c: char) -> Option<&'static str> {
-    Some(match c {
-        '\'' => "quote",
-        '`' => "quasiquote",
-        ',' => "unquote",
-        _ => return None,
-    })
+fn quote_shortcuts<'a>(s: &'a str) -> Option<(&'static str, &'a str)> {
+    [
+        ("'", "quote"),
+        ("`", "quasiquote"),
+        // put this first so it looks for it first
+        (",@", "unquote-splicing"),
+        (",", "unquote"),
+    ]
+    .iter()
+    .find_map(|(header, quote)| s.strip_prefix(header).map(|rest| (*quote, rest)))
 }
 
 /// Find the byte positions of the child string's start and end in the parent string.

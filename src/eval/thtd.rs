@@ -223,6 +223,7 @@ pub fn check_argc(
             Gc::new(Expr::Integer(min as _)),
             Gc::new(Expr::Integer(max as _)),
             Gc::new(Expr::Integer(args.len() as _)),
+            Engine::list_to_sexp(args),
         ]);
         Err(engine.make_err("application/argc", msg, Some(data)))
     } else {
@@ -236,6 +237,7 @@ pub fn check_min_argc(engine: &mut Engine, args: &[Gc<Expr>], min: usize) -> Res
         let data = Engine::list_to_sexp(&[
             Gc::new(Expr::Integer(min as _)),
             Gc::new(Expr::Integer(args.len() as _)),
+            Engine::list_to_sexp(args),
         ]);
         Err(engine.make_err("application/min-argc", msg, Some(data)))
     } else {
