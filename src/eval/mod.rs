@@ -195,7 +195,12 @@ impl Engine {
                             } else {
                                 self.eval_inner(arg_env.clone(), tail.clone())?
                             };
-                            Ok(TailRec::TailRecur(last, arg_env))
+                            let last_env = if closed_env.is_some() {
+                                arg_env
+                            } else {
+                                env
+                            };
+                            Ok(TailRec::TailRecur(last, last_env))
                         };
                         let res = trynt();
                         res.map_err(|mut e| {

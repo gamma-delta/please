@@ -21,3 +21,20 @@ pub fn if_(
         env,
     ))
 }
+
+pub fn do_(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
+
+    Ok(match args {
+        [first @ .., tail] => {
+            for expr in first {
+                engine.eval_inner(env.clone(), expr.clone())?;
+            }
+            TailRec::TailRecur(tail.to_owned(), env)
+        },
+        [] => TailRec::Exit(Gc::new(Expr::Nil)),
+    })
+}

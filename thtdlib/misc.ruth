@@ -1,5 +1,3 @@
-(define-macro (do . bodies) (eval (append '(let ()) bodies)))
-
 (define-macro (-> expr . more)
   (if more
     (let (
@@ -36,5 +34,3 @@
 
 
 (define-macro (lambda->> expr . more) `(\ (x) (->> x ,expr . ,more)))
-
-(define-macro (examine . more) 'more)

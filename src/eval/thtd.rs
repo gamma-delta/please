@@ -40,6 +40,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("lambda", lambda as _),
         ("macro", macro_ as _),
         ("if", if_ as _),
+        ("do", do_ as _),
         ("let", let_ as _),
         ("and", and as _),
         ("or", or as _),

@@ -8,11 +8,24 @@
 (define (list-len l)
   (fold (lambda (acc _) (add1 acc)) 0 l))
 
-(define (append l x) 
-  (let ([head (car l)] [tail (cdr l)])
-    (if tail
-      (lazy-cons head (append tail x))
-      (lazy-cons head x))))
+(define (append1 l x) 
+  (if l
+    (lazy-cons (car l) (append (cdr l) x))
+    x))
+
+(define (append . lists)
+  (if lists
+    (append1 (car lists) (apply append (cdr lists)))
+    '()))
+
+(define (flatmap f l)
+  (apply append (for f l)))
+
+(define (mult1 l r)
+  (flatmap (\ (l) (for (\ (r) (cons r l)) r)) l))
+
+(define (mult lists)
+  (fold mult1 '(()) lists))
 
 (define (extend l . rest) (append l rest)) ; auto-list
 
