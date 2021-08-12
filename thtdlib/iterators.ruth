@@ -1,0 +1,55 @@
+; Iteration and higher-order functions.
+
+(define (for fn list)
+  (if list
+    (lazy-cons (fn (car list)) (for fn (cdr list)))
+    ()))
+
+(define (fold fn acc . lists)
+  (if (all (~ null?) lists)
+    ; still have leftover list
+    (apply fold fn
+      (apply fn acc (for car lists))
+      (for cdr lists))
+    ; we're done, give the acc
+    acc))
+
+(define (map fn . rows)
+  (if (all (~ null?) rows)
+    (lazy-cons (apply fn (for car rows)) (apply map fn (for cdr rows)))
+    ()))
+
+(define (filter fn list)
+  (and list
+    (if (fn (car list))
+      ; it passes, put the original on and cons on the rest
+      (lazy-cons (car list) (filter fn (cdr list)))
+      ; ignore and just pass the rest
+      (filter fn (cdr list)))))
+
+(define (flatmap f l)
+  (apply append (for f l)))
+
+(define (mult1 l r)
+  (flatmap (\ (l) (for (\ (r) (cons r l)) r)) l))
+
+(define (mult lists)
+  (fold mult1 '(()) lists))
+
+(define (repeat elt [max false])
+  (if max
+    (if (>=0 max)
+      (lazy-cons elt (repeat elt (sub1 max)))
+      ())
+  (lazy-cons elt (repeat elt))))
+
+; Force-eval the first n elements of the lazy list
+(define (reify n l)
+  (if (>=0 n)
+    (cons (car l) (reify (sub1 n) (cdr l)))
+    l))
+
+(define (find-map fn . rows)
+  (if (all (~ null?) rows)
+    (and (apply fn (for car rows)) (find-map fn (for cdr rows)))
+    false))

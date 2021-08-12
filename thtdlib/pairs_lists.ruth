@@ -18,15 +18,6 @@
     (append1 (car lists) (apply append (cdr lists)))
     '()))
 
-(define (flatmap f l)
-  (apply append (for f l)))
-
-(define (mult1 l r)
-  (flatmap (\ (l) (for (\ (r) (cons r l)) r)) l))
-
-(define (mult lists)
-  (fold mult1 '(()) lists))
-
 (define (extend l . rest) (append l rest)) ; auto-list
 
 (define (list-nth l n)
@@ -80,4 +71,9 @@
 (define (split-around needle haystack [equal? equal?])
   (let ([n (find needle haystack equal?)])
     (and n (split-at haystack n))))
+
+(define (last l)
+  (if (null? (cdr l))
+    (car l)
+    (last (cdr l))))
 

@@ -1,32 +1,5 @@
 ; Composing and mapping functions
 
-(define (for fn list)
-  (if list
-    (lazy-cons (fn (car list)) (for fn (cdr list)))
-    ()))
-
-(define (fold fn acc . lists)
-  (if (all (~ null?) lists)
-    ; still have leftover list
-    (apply fold fn
-      (apply fn acc (for car lists))
-      (for cdr lists))
-    ; we're done, give the acc
-    acc))
-
-(define (map fn . rows)
-  (if (all (~ null?) rows)
-    (lazy-cons (apply fn (for car rows)) (apply map fn (for cdr rows)))
-    ()))
-
-(define (filter fn list)
-  (and list
-    (if (fn (car list))
-      ; it passes, put the original on and cons on the rest
-      (lazy-cons (car list) (filter fn (cdr list)))
-      ; ignore and just pass the rest
-      (filter fn (cdr list)))))
-
 (define (compose fn . rest)
   (if rest
     (\ (x)
@@ -61,23 +34,6 @@
   (lambda newargs
     (apply fn (append newargs args))))
 
-;*
-(define-macro (brooks . body)
-  (let (
-    [flankers (split-around '_ body)])
-    (cond
-      ; put the threadee between the flankers
-      [flankers `(\ newargs (eval 
-        (append ; both are lists  
-          (append ',(car flankers) newargs) ; append because newargs is a list
-          ',(cdr flankers))))]
-      ; put the threadee after the first argument (the function, probably)
-      [true `(\ newargs (eval
-        (cons 
-          ',(car body) 
-          (cons newargs ',(cdr body)))))])))
-*;
-
 (define (all fn list) 
   (if list
     (and (fn (car list)) (all fn (cdr list)))
@@ -85,10 +41,11 @@
 
 (define (any fn list) 
   (if list
-    (or (fn (car list)) (all fn (cdr list)))
+    (or (fn (car list)) (any fn (cdr list)))
     false))
 
-(define-macro (thunk . bodies) `(\ () . ,bodies))
+(define-macro (thunk . bodies) `(\ () . ,bodies)) ; require zero args
+(define-macro (thunk* . bodies) `(\ _ . ,bodies)) ; allow any args
 
 (define \ lambda)
 (define fn lambda)

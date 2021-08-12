@@ -1,6 +1,11 @@
 (define (list? l) (or (nil? l) (and (pair? l) (list? (cdr l)))))
+(define (exception? x)
+  (and
+    (list? x)
+    (equal? '! (first x))))
 
 (define null? nil?)
 
 ; i am sick of typoing this
 (define equals? equal?)
+

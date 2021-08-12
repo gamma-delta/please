@@ -3,8 +3,11 @@
 mod control;
 mod env;
 mod eq;
+mod exceptions;
+mod fmt;
 mod funcs;
 mod math;
+mod misc;
 mod pairs_lists;
 mod quoting;
 mod strings;
@@ -12,8 +15,11 @@ mod symbols;
 use control::*;
 use env::*;
 use eq::*;
+use exceptions::*;
+use fmt::*;
 use funcs::*;
 use math::*;
+use misc::*;
 use pairs_lists::*;
 use quoting::*;
 use strings::*;
@@ -45,6 +51,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("and", and as _),
         ("or", or as _),
         ("lazy-cons", lazy_cons as _),
+        ("catch", catch as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {
@@ -87,6 +94,10 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("string", to_string as _),
         ("string-len", string_len as _),
         ("prn", prn as _),
+        ("string-slice", string_slice as _),
+        ("string-find", string_find as _),
+        // formatting
+        ("scanf", scanf as _),
         // list/pair
         ("cons", cons as _),
         ("car", car as _),
@@ -94,6 +105,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         // symbols
         ("string->symbol", string2symbol as _),
         ("symbol->string", symbol2string as _),
+        // exceptions
+        ("exception", make_exception as _),
         // equality
         ("obj-equal?", id_equal as _),
         ("equal?", equal as _),
@@ -109,6 +122,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("macro?", is_macro as _),
         // etc
         ("reload-thtdlib", reload_thtd as _),
+        ("timeit", timeit as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
@@ -123,26 +137,6 @@ pub fn add_thtandard_library(engine: &mut Engine) {
             func: Err(tail_func),
             name: symbol,
         });
-        thtdlib.borrow_mut().insert(symbol, handle);
-    }
-
-    // Atomic constants that mean nothing other than themselves
-    for atom in ["false", "true", "!"] {
-        let symbol = engine.intern_symbol(atom);
-        // Have the symbol point to itself so it evals to itself
-        // it acts like a literal
-        thtdlib
-            .borrow_mut()
-            .insert(symbol, Gc::new(Expr::Symbol(symbol)));
-    }
-
-    for (name, thing) in [
-        ("ps1", Expr::String(">>> ".to_string())),
-        ("ps2", Expr::String("... ".to_string())),
-        ("null", Expr::Nil),
-    ] {
-        let symbol = engine.intern_symbol(name);
-        let handle = Gc::new(thing);
         thtdlib.borrow_mut().insert(symbol, handle);
     }
 

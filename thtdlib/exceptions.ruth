@@ -1,0 +1,19 @@
+(define (! name msger [data ()])
+  (make-exception
+    name
+    (if (callable? msger) 
+      (msger data) 
+      msger)
+    data))
+
+(define-macro (with-handlers handlers body . bodies)
+  (let ([bodies (cons body bodies)])
+    `(let ([res (catch (do ,@bodies))])
+      (if ((~ exception?) res)
+        res
+        (let (
+          [handled (find-map 
+            (\ (pred-handler) (and ((first pred-handler) res) ((second pred-handler) res)))
+            ,handlers)])
+          (and handled res))))))
+
