@@ -1,0 +1,63 @@
+; Rules are:
+; - a string
+; - a list of indices
+; - a pair of rules
+
+; Return:
+; - the rest of the string if it matches
+; - false if it doesn't
+(define (rule-consume rule db input)
+  (cond
+    [(string? rule)
+      (and (=0 (string-find input rule))
+        ; then it starts with our input!
+        ; slice off the first char
+        ; (and if it doesn't it fails)
+        (string-slice input 1))]
+    [(list? rule)
+      (let loop ([rule-idxes rule] [input input])
+        (if rule-idxes
+          ; make sure each rule works out
+          (let ([rest (rule-consume 
+            (map-get db (car rule-idxes)) db input)])
+            (and rest (loop (cdr rule-idxes) rest))))
+          )]
+    [true (or 
+      (rule-consume (car rule) db input)
+      (rule-consume (cdr rule) db input))]))
+
+(define (read-rule str)
+  (let (
+    [meat (string-slice str (add1 (string-find ":" str)))] ; strip off the nonsense start
+    [data (read meat)])
+    (let classify ([data data])
+      (let ([split-at-pipe (split-around '| data)])
+        (prn (string data " : " split-at-pipe))
+        (cond
+          ; is there a pipe? put together the two rules
+          [split-at-pipe (cons 
+            (classify (car split-at-pipe)) 
+            (classify (cdr split-at-pipe)))]
+          ; if it starts with a string, it's just a string.
+          ; there's no mixed index-and-string rules
+          [(string? (car data)) (car data)]
+          ; otherwise it's just the list of ints we already have
+          [true data])))))
+
+(define (make-rule-db input)
+  (apply make-map
+    (fold (\ (acc idx line)
+      ; diy flat-map
+      (extend acc idx (read-rule line)))
+      () (range) (string-lines input))))
+
+(prn (make-rule-db 
+<<EOF
+0: 4 1 5
+1: 2 3 | 3 2
+2: 4 4 | 5 5
+3: 4 5 | 5 4
+4: "a"
+5: "b"
+EOF
+))

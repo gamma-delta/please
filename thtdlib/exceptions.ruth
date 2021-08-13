@@ -1,5 +1,5 @@
 (define (! name msger [data ()])
-  (make-exception
+  (exception
     name
     (if (callable? msger) 
       (msger data) 
@@ -17,3 +17,11 @@
             ,handlers)])
           (and handled res))))))
 
+(define-macro (assert body 
+  [name ''assert] ; why do we need double quotes? beats me! i think its because we eval the rhs of a default arg?
+  [message false])
+  `(let ([result ,body]) 
+    (or result (! 
+      ,name 
+      (or ,message (string "assertion failed: " ',body " returned " result)) 
+      result))))

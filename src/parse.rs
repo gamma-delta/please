@@ -1,6 +1,6 @@
 use std::{fmt::Debug, num::ParseIntError, ops::Range};
 
-use ariadne::{CharSet, Label, Report, ReportKind, Source};
+use ariadne::{CharSet, Label, Report, ReportKind};
 use gc::Gc;
 use itertools::Either;
 use thiserror::Error;
@@ -102,6 +102,25 @@ impl ExprParseError {
                     )
                     .with_note("try putting a '\"' at the end");
             }
+            ExprParseErrorInfo::HerestringNoName => {
+                report = report.with_label(
+                    Label::new(all).with_message("an indicator string is required after this <<"),
+                );
+            }
+            ExprParseErrorInfo::HerestringNoEnding(name) => {
+                report = report
+                    .with_label(Label::new(all)
+                        .with_message(format!("the ending to the herestring {:?} wasn't found", name)))
+                    .with_note(format!("make sure that {:?} is on a line all by itself with no leading or trailing spaces or characters", name));
+            }
+            ExprParseErrorInfo::HerestringNoContents => {
+                report = report.with_label(
+                    Label::new(all).with_message(
+                        "a newline is required after this so the herestring can have contents"
+                            .to_owned(),
+                    ),
+                );
+            }
             ExprParseErrorInfo::InvalidEscape(pos, problem) => {
                 report = report
                     .with_label(
@@ -185,6 +204,13 @@ pub enum ExprParseErrorInfo {
     WrongDotTrailCount,
     #[error("expected a closing quote")]
     ExpectedCloseQuote,
+    #[error("herestring requires a newline")]
+    HerestringNoContents,
+    #[error("herestring requires a name after the <<")]
+    HerestringNoName,
+    /// contains the ending we expect
+    #[error("herestring requires an ending {0:?}")]
+    HerestringNoEnding(String),
     /// The usize is the position from the start of the string including the quote
     /// where the bad is
     #[error("bad escape sequence")]
@@ -558,7 +584,45 @@ fn is_closer(c: char) -> bool {
     c == ')' || c == ']' || c == '}'
 }
 
-fn try_read_string<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a, String>> {
+fn try_read_string<'a>(s: &'a str, state: &mut Engine) -> Option<ReadResult<'a, String>> {
+    let whole = s.trim_start();
+    if let Some(rest) = whole.strip_prefix("<<") {
+        let newline_pos = match rest.find('\n') {
+            Some(it) => it,
+            None => {
+                return Some(Err(ExprParseErrorLimited {
+                    data: ExprParseErrorInfo::HerestringNoContents,
+                    offender: rest,
+                }))
+            }
+        };
+        let (here_starter, rest) = rest.split_at(newline_pos);
+        if here_starter.is_empty() {
+            return Some(Err(ExprParseErrorLimited {
+                data: ExprParseErrorInfo::HerestringNoContents,
+                offender: here_starter,
+            }));
+        }
+        // now find it with the newline to force it to be
+        // alone on the line
+        let here_ender = format!("\n{}\n", here_starter);
+        let herestring_end = match rest[1..].find(&here_ender) {
+            Some(it) => it,
+            None => {
+                return Some(Err(ExprParseErrorLimited {
+                    data: ExprParseErrorInfo::HerestringNoEnding(here_starter.to_owned()),
+                    offender: here_starter,
+                }))
+            }
+        };
+        let (herestring, rest) = rest[1..].split_at(herestring_end);
+        Some(Ok((String::from(herestring), &rest[here_ender.len()..])))
+    } else {
+        try_read_normal_string(s, state)
+    }
+}
+
+fn try_read_normal_string<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a, String>> {
     let whole = s.trim_start();
     if let Some(mut s) = whole.strip_prefix('"') {
         // doesn't make sure \ is before "
@@ -720,26 +784,4 @@ fn test_string_pos() {
 
     let bounds = string_pos(s, s);
     assert_eq!(bounds, (0, s.len()));
-}
-
-#[test]
-fn ariadne_borked() {
-    let test_str = r#"(my 
-(complex 
-    lisp 123
-    with 
-    (a bad token here))!
-(oh the horror)"#;
-
-    let lf = test_str.replace("\r\n", "\n");
-    let crlf = lf.replace("\n", "\r\n");
-
-    for (test_name, source) in [("lf", lf), ("crlf", crlf)] {
-        let bad_pos = source.as_str().find('!').unwrap();
-        println!("{}:", test_name);
-        let error = Report::build(ReportKind::Error, (), bad_pos)
-            .with_label(Label::new(bad_pos..bad_pos + 1).with_message("this token is invalid"))
-            .finish();
-        error.eprint(Source::from(source)).unwrap();
-    }
 }

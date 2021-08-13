@@ -27,11 +27,11 @@
       ; ignore and just pass the rest
       (filter fn (cdr list)))))
 
-(define (flatmap f l)
+(define (flat-map f l)
   (apply append (for f l)))
 
 (define (mult1 l r)
-  (flatmap (\ (l) (for (\ (r) (cons r l)) r)) l))
+  (flat-map (\ (l) (for (\ (r) (cons r l)) r)) l))
 
 (define (mult lists)
   (fold mult1 '(()) lists))

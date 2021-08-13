@@ -10,7 +10,7 @@
 
 (define (append1 l x) 
   (if l
-    (lazy-cons (car l) (append (cdr l) x))
+    (lazy-cons (car l) (append1 (cdr l) x))
     x))
 
 (define (append . lists)

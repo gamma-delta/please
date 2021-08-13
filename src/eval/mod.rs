@@ -2,7 +2,6 @@ use crate::{Engine, EvalResult, Exception, Expr, Namespace, Value};
 
 pub mod thtd;
 use gc::{Gc, GcCell};
-use itertools::{EitherOrBoth, Itertools};
 pub use thtd::{add_thtandard_library, bad_arg_type};
 
 /// Do we use tail recursion for a special form?
@@ -47,7 +46,8 @@ impl Engine {
             | Expr::String(_)
             | Expr::SpecialForm { .. }
             | Expr::NativeProcedure { .. }
-            | Expr::Procedure { .. } => Ok(TailRec::Exit(expr)),
+            | Expr::Procedure { .. }
+            | Expr::Map(_) => Ok(TailRec::Exit(expr)),
             // Lookup the symbol
             &Expr::Symbol(id) => {
                 let idx = env.borrow().lookup(id);
@@ -90,11 +90,10 @@ impl Engine {
                             Ok(func) => func(self, env, &evaled_args).map(TailRec::Exit),
                             Err(tailfunc) => tailfunc(self, env, &evaled_args),
                         };
-                        result
-                            .map_err(|mut e| {
-                                e.call_trace.trace.push(Some(name));
-                                e
-                            })
+                        result.map_err(|mut e| {
+                            e.call_trace.trace.push(Some(name));
+                            e
+                        })
                     }
                     Expr::Procedure {
                         args: arg_names,
@@ -195,11 +194,7 @@ impl Engine {
                             } else {
                                 self.eval_inner(arg_env.clone(), tail.clone())?
                             };
-                            let last_env = if closed_env.is_some() {
-                                arg_env
-                            } else {
-                                env
-                            };
+                            let last_env = if closed_env.is_some() { arg_env } else { env };
                             Ok(TailRec::TailRecur(last, last_env))
                         };
                         let res = trynt();

@@ -1,5 +1,7 @@
 //! The worst part of every AoC is getting the input in.
 
+use itertools::Itertools;
+
 use super::*;
 
 pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
@@ -118,4 +120,19 @@ fn read_char(s: &mut &str) -> Option<char> {
         *s = &s[c.len_utf8()..];
         c
     })
+}
+
+pub fn read(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let s = match &*args[0] {
+        Expr::String(s) => s,
+        _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
+    };
+
+    let res = match crate::parse::read_many(s, "<read>".to_owned(), engine) {
+        Ok(it) => it.into_iter().map(Gc::new).collect_vec(),
+        Err(ono) => return Err(engine.make_err("read/syntax", ono.to_string(), None)),
+    };
+    Ok(Engine::list_to_sexp(&res))
 }

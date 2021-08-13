@@ -1,5 +1,6 @@
 //! Ruth's thtandard library.
 
+mod collections;
 mod control;
 mod env;
 mod eq;
@@ -12,6 +13,7 @@ mod pairs_lists;
 mod quoting;
 mod strings;
 mod symbols;
+use collections::*;
 use control::*;
 use env::*;
 use eq::*;
@@ -96,8 +98,10 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("prn", prn as _),
         ("string-slice", string_slice as _),
         ("string-find", string_find as _),
+        ("string-lines", string_lines as _),
         // formatting
         ("scanf", scanf as _),
+        ("read", read as _),
         // list/pair
         ("cons", cons as _),
         ("car", car as _),
@@ -120,6 +124,12 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("callable?", is_callable as _),
         ("procedure?", is_procedure as _),
         ("macro?", is_macro as _),
+        // collections
+        ("new-map", new_map as _),
+        ("map-insert", map_insert as _),
+        ("map-get", map_get as _),
+        ("map-remove", map_remove as _),
+        ("map->list", map2list as _),
         // etc
         ("reload-thtdlib", reload_thtd as _),
         ("timeit", timeit as _),
@@ -171,12 +181,12 @@ fn load_thtd_lib(engine: &mut Engine) -> EvalResult {
         let source = fs::read_to_string(&name).unwrap();
         let res = engine.read_eval(&source, name.to_owned());
         match res {
-            Ok(it) => {
-                if !matches!(&*it, Expr::Nil) {
-                    println!("{}", engine.write_expr(it).unwrap());
-                    return nil_out;
-                }
+            Ok(Err(ono)) => {
+                let ono = ono.into_expr(engine);
+                println!("{}", engine.write_expr(ono).unwrap());
+                return nil_out;
             }
+            Ok(Ok(_)) => {}
             Err(e) => {
                 e.report()
                     .eprint(ariadne::sources(std::iter::once((name, source))))

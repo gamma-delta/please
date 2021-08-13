@@ -1,5 +1,7 @@
 //! Messing with strings.
 
+use itertools::Itertools;
+
 use super::*;
 
 pub fn to_string(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
@@ -32,17 +34,35 @@ pub fn string_slice(
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
     };
 
-    let start = args[1].to_owned();
-    let start = match &*start {
-        Expr::Integer(i) if *i >= 0 => *i as usize,
-        _ if !engine.is_truthy(start.to_owned()) => 0,
-        _ => return Err(bad_arg_type(engine, start, 1, "positive int or falsy")),
+    let start = match args.get(1) {
+        None => 0,
+        Some(start) => match &**start {
+            Expr::Integer(i) if *i >= 0 => *i as usize,
+            _ if !engine.is_truthy(start.to_owned()) => 0,
+            _ => {
+                return Err(bad_arg_type(
+                    engine,
+                    start.to_owned(),
+                    1,
+                    "positive int or falsy",
+                ))
+            }
+        },
     };
-    let end = args[2].to_owned();
-    let end = match &*end {
-        Expr::Integer(i) if *i >= 0 => *i as usize,
-        _ if !engine.is_truthy(end.to_owned()) => string.len(),
-        _ => return Err(bad_arg_type(engine, end, 2, "positive int or falsy")),
+    let end = match args.get(2) {
+        None => string.len(),
+        Some(end) => match &**end {
+            Expr::Integer(i) if *i >= 0 => *i as usize,
+            _ if !engine.is_truthy(end.to_owned()) => string.len(),
+            _ => {
+                return Err(bad_arg_type(
+                    engine,
+                    end.to_owned(),
+                    2,
+                    "positive int or falsy",
+                ))
+            }
+        },
     };
 
     if !string.is_char_boundary(start) {
@@ -71,9 +91,9 @@ pub fn string_slice(
         ));
     }
 
-    let too_far = if start >= string.len() {
+    let too_far = if start > string.len() {
         Some(start)
-    } else if end >= string.len() {
+    } else if end > string.len() {
         Some(end)
     } else {
         None
@@ -114,6 +134,8 @@ pub fn string_slice(
 }
 
 pub fn string_find(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 2, 2)?;
+
     let needle = match &*args[0] {
         Expr::String(s) => s,
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
@@ -126,6 +148,24 @@ pub fn string_find(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Exp
         Some(idx) => Gc::new(Expr::Integer(idx as _)),
         None => engine.make_bool(false),
     })
+}
+
+pub fn string_lines(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let s = match &*args[0] {
+        Expr::String(s) => s,
+        _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
+    };
+    let lines = s
+        .lines()
+        .map(|s| Gc::new(Expr::String(s.to_owned())))
+        .collect_vec();
+    Ok(Engine::list_to_sexp(&lines))
 }
 
 pub fn prn(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {

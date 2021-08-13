@@ -18,7 +18,6 @@ extern crate derivative;
 use bimap::BiHashMap;
 use gc::{Finalize, Gc, GcCell, Trace};
 
-type NativeFn<T> = fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Result<T, Exception>;
 #[derive(Derivative, Trace, Finalize)]
 #[derivative(Debug)]
 pub enum Expr {
@@ -60,6 +59,8 @@ pub enum Expr {
         /// Possible name of the `define` that created this.
         name: Option<Symbol>,
     },
+
+    Map(HashMap<String, Gc<Expr>>),
 }
 
 impl Expr {
@@ -123,13 +124,17 @@ impl Engine {
 
     /// Read and eval everything in the source file, returning
     /// the item in tail position (or `()` if there isn't anything).
-    pub fn read_eval(&mut self, s: &str, source_name: String) -> Result<Gc<Expr>, ExprParseError> {
+    pub fn read_eval(
+        &mut self,
+        s: &str,
+        source_name: String,
+    ) -> Result<Result<Gc<Expr>, Exception>, ExprParseError> {
         Ok(self
             .read_many(s, source_name)?
             .into_iter()
-            .map(|e| self.eval(self.thtdlib(), Gc::new(e)))
+            .map(|e| self.eval_inner(self.thtdlib(), Gc::new(e)))
             .last()
-            .unwrap_or_else(|| Gc::new(Expr::Nil)))
+            .unwrap_or_else(|| Ok(Gc::new(Expr::Nil))))
     }
 
     /// Write an expression to a string. Reading this string
@@ -215,8 +220,6 @@ impl Engine {
                         write!(w, "macro (")?;
                     }
 
-                    if *variadic {}
-
                     let (draw_now_args, special) = if *variadic && args.last().is_some() {
                         (&args[..args.len() - 1], true)
                     } else {
@@ -250,6 +253,14 @@ impl Engine {
                         recur(engine, w, body_expr.clone())?;
                     }
 
+                    write!(w, ")")
+                }
+                Expr::Map(m) => {
+                    write!(w, "(make-map")?;
+                    for (k, v) in m.iter() {
+                        write!(w, " {} ", k)?;
+                        recur(engine, w, v.to_owned())?;
+                    }
                     write!(w, ")")
                 }
             }
@@ -330,6 +341,14 @@ impl Engine {
                 }
                 Expr::Procedure { .. } => {
                     write!(w, "<procedure>")
+                }
+                Expr::Map(m) => {
+                    write!(w, "(make-map")?;
+                    for (k, v) in m.iter() {
+                        write!(w, " {} ", k)?;
+                        recur(engine, w, v.to_owned())?;
+                    }
+                    write!(w, ")")
                 }
             }
         }
@@ -594,6 +613,8 @@ pub type EvalResult = Result<Value, Exception>;
 
 //#[derive(Debug, Trace, Finalize)]
 pub type LazyExprCell = GcCell<(Gc<Expr>, bool)>;
+
+type NativeFn<T> = fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Result<T, Exception>;
 
 /// Where was an expr evaled from?
 #[derive(Debug)]

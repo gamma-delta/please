@@ -22,6 +22,7 @@ pub fn repl(mut engine: Engine) -> termwiz::Result<()> {
 
         let line = editor.read_line(&mut host)?.unwrap_or_default();
         input.push_str(&line);
+        input.push('\n');
         host.history().add(&line);
 
         // we try to be done
@@ -33,7 +34,9 @@ pub fn repl(mut engine: Engine) -> termwiz::Result<()> {
                     // we might supply the closer later; do nothing
                     ExprParseErrorInfo::ExpectedCloseParen { .. }
                     | ExprParseErrorInfo::ExpectedCloseQuote
-                    | ExprParseErrorInfo::ExpectedCloseBlockComment => {
+                    | ExprParseErrorInfo::ExpectedCloseBlockComment
+                    | ExprParseErrorInfo::HerestringNoEnding(..)
+                    | ExprParseErrorInfo::HerestringNoContents => {
                         in_parens = true;
                         continue;
                     }
