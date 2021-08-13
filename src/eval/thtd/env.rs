@@ -39,7 +39,7 @@ fn define_internals(
                 body,
                 env,
                 variadic,
-                ..
+                name: _old_name,
             } => Gc::new(Expr::Procedure {
                 args: args.to_owned(),
                 body: body.to_owned(),

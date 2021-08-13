@@ -81,15 +81,18 @@ impl Engine {
                         e
                     }),
                     &Expr::NativeProcedure { func, name } => {
-                        let evaled_args = args
-                            .into_iter()
-                            .map(|expr| self.eval_inner(env.clone(), expr))
-                            .collect::<Result<Vec<_>, _>>()?;
+                        let trynt = || {
+                            let evaled_args = args
+                                .into_iter()
+                                .map(|expr| self.eval_inner(env.clone(), expr))
+                                .collect::<Result<Vec<_>, _>>()?;
 
-                        let result = match func {
-                            Ok(func) => func(self, env, &evaled_args).map(TailRec::Exit),
-                            Err(tailfunc) => tailfunc(self, env, &evaled_args),
+                            match func {
+                                Ok(func) => func(self, env, &evaled_args).map(TailRec::Exit),
+                                Err(tailfunc) => tailfunc(self, env, &evaled_args),
+                            }
                         };
+                        let result = trynt();
                         result.map_err(|mut e| {
                             e.call_trace.trace.push(Some(name));
                             e
