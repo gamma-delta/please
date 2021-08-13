@@ -53,11 +53,11 @@
 (define drop leave) ; alwinfy's no fun
 
 ; Omit the nth element of l
-(define (omit l n) 
-  (let ([split (split-at l n)])
+(define (omit n l) 
+  (let ([split (split-at n l)])
     (append (car split) (cdr split))))
 
-(define (split-at l n) (cons (take l n) (leave l (add1 n))))
+(define (split-at n l) (cons (take n l) (leave (add1 n) l)))
 
 (define (find needle haystack [equal? equal?]) 
   (let searcher ([n 0] [haystack haystack])
@@ -70,10 +70,15 @@
 ;; or false if it isn't found.
 (define (split-around needle haystack [equal? equal?])
   (let ([n (find needle haystack equal?)])
-    (and n (split-at haystack n))))
+    (and n (split-at n haystack))))
 
 (define (last l)
   (if (null? (cdr l))
     (car l)
     (last (cdr l))))
 
+(define (flatten l) 
+  (and l
+    (if (list? (car l))
+      (append (car l) (flatten (cdr l)))
+      (cons (car l) (flatten (cdr l))))))

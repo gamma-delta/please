@@ -54,6 +54,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("or", or as _),
         ("lazy-cons", lazy_cons as _),
         ("catch", catch as _),
+        ("with-handler", with_handler as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {
@@ -102,6 +103,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         // formatting
         ("scanf", scanf as _),
         ("read", read as _),
+        ("write", write as _),
         // list/pair
         ("cons", cons as _),
         ("car", car as _),

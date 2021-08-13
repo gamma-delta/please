@@ -58,3 +58,6 @@
         (lazy-cons n (loop (add1 n)))
         ()))
     (range 0 start)))
+
+(define (always? . _) true)
+(define (never? . _) false)

@@ -133,7 +133,7 @@ impl Engine {
             .read_many(s, source_name)?
             .into_iter()
             .map(|e| self.eval_inner(self.thtdlib(), Gc::new(e)))
-            .last()
+            .find_or_last(Result::is_err)
             .unwrap_or_else(|| Ok(Gc::new(Expr::Nil))))
     }
 
@@ -566,7 +566,7 @@ impl Namespace {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Exception {
     /// Name of the exception
     pub id: Symbol,
@@ -617,7 +617,7 @@ pub type LazyExprCell = GcCell<(Gc<Expr>, bool)>;
 type NativeFn<T> = fn(&mut Engine, Gc<GcCell<Namespace>>, &[Gc<Expr>]) -> Result<T, Exception>;
 
 /// Where was an expr evaled from?
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EvalSource {
     /// An empty vec means the top level.
     /// A `[H... | Entry]` means it was called from the function/macro with the given name.

@@ -51,5 +51,5 @@
 
 (define (find-map fn . rows)
   (if (all (~ null?) rows)
-    (and (apply fn (for car rows)) (find-map fn (for cdr rows)))
+    (or (apply fn (for car rows)) (apply find-map fn (for cdr rows)))
     false))

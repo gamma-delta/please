@@ -66,6 +66,36 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
 
                         datums_read.push(Gc::new(Expr::String(s.to_owned())));
                     }
+                    '[' => {
+                        let negate = fmt.starts_with('^');
+                        let set_end = fmt.find(']').ok_or_else(|| {
+                            engine.make_err(
+                                "scanf/no-charset-end",
+                                "a charset \"%[chars]\" requires an ending bracket".to_string(),
+                                None,
+                            )
+                        })?;
+
+                        let (set, rest) = fmt.split_at(set_end);
+                        let set = set.chars().dedup().collect_vec();
+                        fmt = &rest[1..]; // skip the one-byte '['
+
+                        // We actually search for the first char that *doesn't* match
+                        let ending_idx = data
+                            .find(|c: char| {
+                                if negate {
+                                    // search for something *in* the set to end it
+                                    set.contains(&c)
+                                } else {
+                                    // search for something *out* of the set to end it
+                                    !set.contains(&c)
+                                }
+                            })
+                            .unwrap_or_else(|| data.len());
+                        let (s, rest) = data.split_at(ending_idx);
+                        data = rest;
+                        datums_read.push(Gc::new(Expr::String(s.to_owned())));
+                    }
 
                     ono => {
                         return Err(engine.make_err(
@@ -135,4 +165,11 @@ pub fn read(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) ->
         Err(ono) => return Err(engine.make_err("read/syntax", ono.to_string(), None)),
     };
     Ok(Engine::list_to_sexp(&res))
+}
+
+pub fn write(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+    engine
+        .write_expr(args[0].to_owned())
+        .map(|s| Gc::new(Expr::String(s)))
 }

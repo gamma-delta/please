@@ -14,7 +14,7 @@ pub fn new_map(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) ->
 }
 
 pub fn map_insert(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -> EvalResult {
-    check_min_argc(engine, args, 2)?;
+    check_min_argc(engine, args, 1)?;
 
     let mut map = match &*args[0] {
         Expr::Map(m) => m.to_owned(),
@@ -23,7 +23,7 @@ pub fn map_insert(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value])
 
     let kv_count = args.len() - 1;
     if kv_count % 2 != 0 {
-        return Err(engine.make_err("map/insert/kv-mismatch", format!("expected an even number of trailing args so there are equally many keys and values, but {} is not even", kv_count), Some(Gc::new(Expr::Integer(kv_count as _)))));
+        return Err(engine.make_err("map/insert-kv-mismatch", format!("expected an even number of trailing args so there are equally many keys and values, but {} is not even", kv_count), Some(Gc::new(Expr::Integer(kv_count as _)))));
     }
 
     let mut clobbered = Vec::with_capacity(kv_count / 2);
@@ -58,7 +58,11 @@ pub fn map_get(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) ->
         found.push(elt.cloned().unwrap_or_else(|| engine.make_bool(false)));
     }
 
-    Ok(Engine::list_to_sexp(&found))
+    Ok(if found.len() == 1 {
+        found[0].to_owned()
+    } else {
+        Engine::list_to_sexp(&found)
+    })
 }
 
 pub fn map_remove(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -> EvalResult {
