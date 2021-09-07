@@ -493,35 +493,40 @@ EOF
 ; - a list of indices
 ; - a list of ('| rule1 rule2)
 
-; Return:
-; - the rest of the string if it matches
-; - false if it doesn't
+; Return: (the rest of the string | false . optional branch point)
+; the branch point is (rule-rhs . str-at-that-moment) or ()
+; and is filled in as soon as a branch is found:
+; the lhs is checked and the rhs is saved.
+; once a rule fails, we snap back to the rhs and try evaling again.
 (define (rule-consume rule db input)
-  ;; (prn (string rule " : " input))
+  (prn (string rule " : " input))
   (cond
     [(string? rule)
-      (and (with-handlers 
+      (cons (and (with-handlers 
         ([always? (const false)]) 
         (=0 (string-find rule input))) ; needle, haystack
         ; then it starts with our input!
         ; slice off the first char
         ; (and if it doesn't we catch the =0, and it fails)
-        (string-slice input 1))]
+        (string-slice input 1)) 
+        ())]
     [(equal? (first rule) '|)
-      ; Check if either rule isn't falsy
-      (or 
+      ; Execute the first rule and save the second rule. 
+      (cons
         (rule-consume (second rule) db input)
-        (rule-consume (third rule) db input))]
+        (cons (third rule) input))]
     [true
       ; Check all the rules by folding the string rest among them,
-      ; and quitting if it's ever false;
+      ; and quitting if it's ever false
       (fold (\ (acc rule-idx)
-        (and acc (rule-consume (map-get db rule-idx) db acc)))
-        ; acc lists...
-        input rule)]))
+        (and (car acc) (rule-consume (map-get db rule-idx) db (car acc))))
+        (cons input ()) rule)]))
 
 (define (rule-matches rule db input)
-  (equals? (rule-consume rule db input) ""))
+  (let ([result (rule-consume rule db input)])
+    (or
+      (equals? (car result) "")
+      (and (cdr result) (rule-matches (cdar result) db (cddr result))))))
 
 ; Return (idx rule)
 (define (rule-read str)
@@ -569,4 +574,13 @@ EOF
 ;; (prn (solve puzzle-rules puzzle-input false))
 
 ; part 2
-(prn (solve puzzle-rules puzzle-input true))
+;; (prn (solve puzzle-rules puzzle-input true))
+
+(prn (solve <<EOF
+1: 2 | 3
+2: 4 4
+3: 4
+4: "a"
+0: 1 4
+EOF
+"aa" false))

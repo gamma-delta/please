@@ -33,7 +33,7 @@ pub fn map_insert(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value])
     // step 3: n e v e r stabilize anything using them
     // 2021 "array_chunks" incident
     for kv in args[1..].chunks_exact(2) {
-        let k = engine.write_expr(kv[0].to_owned())?;
+        let k = engine.to_hashable(kv[0].to_owned())?;
         let clob = map.insert(k, kv[1].to_owned());
         clobbered.push(clob.unwrap_or_else(|| engine.make_bool(false)));
     }
@@ -53,7 +53,7 @@ pub fn map_get(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) ->
 
     let mut found = Vec::with_capacity(args.len() - 1);
     for k in &args[1..] {
-        let k = engine.write_expr(k.to_owned())?;
+        let k = engine.to_hashable(k.to_owned())?;
         let elt = map.get(&k);
         found.push(elt.cloned().unwrap_or_else(|| engine.make_bool(false)));
     }
@@ -75,7 +75,7 @@ pub fn map_remove(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value])
 
     let mut removed = Vec::with_capacity(args.len() - 1);
     for k in &args[1..] {
-        let k = engine.write_expr(k.to_owned())?;
+        let k = engine.to_hashable(k.to_owned())?;
         let elt = map.remove(&k);
         removed.push(elt.unwrap_or_else(|| engine.make_bool(false)));
     }
@@ -95,12 +95,7 @@ pub fn map2list(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -
 
     let kvs = map
         .iter()
-        .map(|(k, v)| {
-            Gc::new(Expr::Pair(
-                Gc::new(Expr::String(k.to_owned())),
-                v.to_owned(),
-            ))
-        })
+        .map(|(k, v)| Gc::new(Expr::Pair(engine.from_hashable(k), v.to_owned())))
         .collect_vec();
 
     Ok(Engine::list_to_sexp(&kvs))

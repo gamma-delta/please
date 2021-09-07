@@ -1,7 +1,11 @@
+mod display;
 mod eval;
+mod hasheq;
+mod lazy;
 mod parse;
 
 use eval::TailRec;
+use hasheq::HashEqExpr;
 use itertools::Itertools;
 pub use parse::{ExprParseError, ExprParseErrorInfo};
 
@@ -60,7 +64,7 @@ pub enum Expr {
         name: Option<Symbol>,
     },
 
-    Map(HashMap<String, Gc<Expr>>),
+    Map(HashMap<HashEqExpr, Gc<Expr>>),
 }
 
 impl Expr {
@@ -137,226 +141,6 @@ impl Engine {
             .unwrap_or_else(|| Ok(Gc::new(Expr::Nil))))
     }
 
-    /// Write an expression to a string. Reading this string
-    /// should yield the same as the original (with some caveats for procedures &c).
-    pub fn write_expr(&mut self, expr: Gc<Expr>) -> Result<String, Exception> {
-        self.reify(&expr)?;
-        fn recur(
-            engine: &mut Engine,
-            w: &mut impl Write,
-            expr: Gc<Expr>,
-        ) -> Result<(), fmt::Error> {
-            match &*expr {
-                Expr::Integer(i) => write!(w, "{}", i),
-                Expr::Float(f) => write!(w, "{}", f),
-                Expr::Symbol(sym) => {
-                    if let Some(s) = engine.get_symbol_str(*sym) {
-                        write!(w, "{}", s)
-                    } else {
-                        write!(w, "<unknown #{}>", sym)
-                    }
-                }
-                Expr::Pair(..) | Expr::LazyPair(..) => {
-                    let (car, cdr) = engine.split_cons(expr).unwrap();
-                    fn write_list<W: Write>(
-                        engine: &mut Engine,
-                        w: &mut W,
-                        car: Gc<Expr>,
-                        cdr: Gc<Expr>,
-                    ) -> Result<(), fmt::Error> {
-                        recur(engine, w, car)?;
-                        match &*cdr {
-                            // Proper list's end, do nothing
-                            Expr::Nil => Ok(()),
-                            // Proper list, leave space for the next thing.
-                            Expr::Pair(..) | Expr::LazyPair(..) => {
-                                let (cdar, cddr) = engine.split_cons(cdr).unwrap();
-                                write!(w, " ")?;
-                                write_list(engine, w, cdar, cddr)
-                            }
-                            // Just a pair
-                            _ => {
-                                write!(w, " . ")?;
-                                recur(engine, w, cdr)
-                            }
-                        }
-                    }
-
-                    write!(w, "(")?;
-                    write_list(engine, w, car, cdr)?;
-                    write!(w, ")")
-                }
-                Expr::Nil => {
-                    write!(w, "()")
-                }
-                Expr::String(s) => {
-                    write!(w, "{:?}", s)
-                }
-                Expr::SpecialForm { name, .. } => {
-                    if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<special form {}>", name)
-                    } else {
-                        write!(w, "<anonymous special form>")
-                    }
-                }
-                Expr::NativeProcedure { name, .. } => {
-                    if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<native proc {}>", name)
-                    } else {
-                        write!(w, "<anonymous native proc>")
-                    }
-                }
-                Expr::Procedure {
-                    args,
-                    body,
-                    variadic,
-                    env,
-                    ..
-                } => {
-                    write!(w, "(")?;
-                    if env.is_some() {
-                        write!(w, "lambda (")?;
-                    } else {
-                        write!(w, "macro (")?;
-                    }
-
-                    let (draw_now_args, special) = if *variadic && args.last().is_some() {
-                        (&args[..args.len() - 1], true)
-                    } else {
-                        (args.as_slice(), false)
-                    };
-
-                    for (idx, (sym, default)) in draw_now_args.iter().enumerate() {
-                        let symbol = engine.get_symbol_str(*sym).unwrap_or("<unknown>");
-                        if let Some(default) = default {
-                            write!(w, "[{} ", symbol)?;
-                            recur(engine, w, default.to_owned())?;
-                            write!(w, "]")?;
-                        } else {
-                            write!(w, "{}", symbol)?;
-                        }
-                        if idx != draw_now_args.len() - 1 {
-                            write!(w, " ")?;
-                        }
-                    }
-                    if special {
-                        // a little hacky but we can't have default trail args
-                        let last = engine
-                            .get_symbol_str(args.last().unwrap().0)
-                            .unwrap_or("<unknown>");
-                        write!(w, ". {}", last)?;
-                    }
-                    write!(w, ")")?;
-
-                    for body_expr in body {
-                        write!(w, " ")?;
-                        recur(engine, w, body_expr.clone())?;
-                    }
-
-                    write!(w, ")")
-                }
-                Expr::Map(m) => {
-                    write!(w, "(make-map")?;
-                    for (k, v) in m.iter() {
-                        write!(w, " {} ", k)?;
-                        recur(engine, w, v.to_owned())?;
-                    }
-                    write!(w, ")")
-                }
-            }
-        }
-        let mut writer = String::new();
-        recur(self, &mut writer, expr).unwrap();
-        Ok(writer)
-    }
-
-    /// Print the expression to a string
-    /// in a nice and human-readable way.
-    pub fn print_expr(&mut self, expr: Gc<Expr>) -> Result<String, Exception> {
-        self.reify(&expr)?;
-        fn recur<W: Write>(
-            engine: &mut Engine,
-            w: &mut W,
-            expr: Gc<Expr>,
-        ) -> Result<(), fmt::Error> {
-            match &*expr {
-                Expr::Integer(i) => write!(w, "{}", i),
-                Expr::Float(f) => write!(w, "{}", f),
-                Expr::String(s) => {
-                    write!(w, "{}", s)
-                }
-                Expr::Symbol(sym) => {
-                    if let Some(s) = engine.get_symbol_str(*sym) {
-                        write!(w, "{}", s)
-                    } else {
-                        write!(w, "<unknown #{}>", sym)
-                    }
-                }
-                Expr::Pair(..) | Expr::LazyPair(..) => {
-                    let (car, cdr) = engine.split_cons(expr).unwrap();
-                    fn write_list<W: Write>(
-                        engine: &mut Engine,
-                        w: &mut W,
-                        car: Gc<Expr>,
-                        cdr: Gc<Expr>,
-                    ) -> Result<(), fmt::Error> {
-                        recur(engine, w, car)?;
-                        match &*cdr {
-                            // Proper list's end, do nothing
-                            Expr::Nil => Ok(()),
-                            // Proper list, leave space for the next thing.
-                            Expr::Pair(..) | Expr::LazyPair(..) => {
-                                let (cdar, cddr) = engine.split_cons(cdr).unwrap();
-                                write!(w, " ")?;
-                                write_list(engine, w, cdar, cddr)
-                            }
-                            // Just a pair
-                            _ => {
-                                write!(w, " . ")?;
-                                recur(engine, w, cdr.to_owned())
-                            }
-                        }
-                    }
-
-                    write!(w, "(")?;
-                    write_list(engine, w, car, cdr)?;
-                    write!(w, ")")
-                }
-                Expr::Nil => {
-                    write!(w, "()")
-                }
-                Expr::SpecialForm { name, .. } => {
-                    if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<native func {}>", name)
-                    } else {
-                        write!(w, "<anonymous native func>")
-                    }
-                }
-                Expr::NativeProcedure { name, .. } => {
-                    if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<native proc {}>", name)
-                    } else {
-                        write!(w, "<anonymous native proc>")
-                    }
-                }
-                Expr::Procedure { .. } => {
-                    write!(w, "<procedure>")
-                }
-                Expr::Map(m) => {
-                    write!(w, "(make-map")?;
-                    for (k, v) in m.iter() {
-                        write!(w, " {} ", k)?;
-                        recur(engine, w, v.to_owned())?;
-                    }
-                    write!(w, ")")
-                }
-            }
-        }
-        let mut writer = String::new();
-        recur(self, &mut writer, expr).unwrap();
-        Ok(writer)
-    }
-
     /// Make or get the symbol handle of the symbol represented by the given string.
     pub fn intern_symbol(&mut self, sym: &str) -> Symbol {
         if let Some(already) = self.interned_symbols.get_by_left(sym) {
@@ -403,63 +187,6 @@ impl Engine {
         } else {
             None
         })
-    }
-
-    /// Eval a LazyExprCell.
-    pub fn eval_cell(&mut self, env: &Gc<GcCell<Namespace>>, expr: &LazyExprCell) -> EvalResult {
-        let (expr, done) = &mut *expr.borrow_mut();
-        if *done {
-            Ok(expr.clone())
-        } else {
-            *done = true;
-            let evaluated = self.eval_inner(env.clone(), expr.clone());
-            *expr = match &evaluated {
-                Ok(val) => val.clone(),
-                Err(_) => Gc::new(Expr::Nil),
-            };
-            evaluated
-        }
-    }
-
-    /// Split a cons pair into head and tail
-    pub fn car(&mut self, expr: Gc<Expr>) -> EvalResult {
-        match &*expr {
-            Expr::Pair(car, _) => Ok(car.to_owned()),
-            Expr::LazyPair(car, _, ctx) => self.eval_cell(ctx, car),
-            _ => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
-        }
-    }
-    pub fn cdr(&mut self, expr: Gc<Expr>) -> EvalResult {
-        match &*expr {
-            Expr::Pair(_, cdr) => Ok(cdr.to_owned()),
-            Expr::LazyPair(_, cdr, ctx) => self.eval_cell(ctx, cdr),
-            _ => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
-        }
-    }
-    pub fn split_cons_verb(
-        &mut self,
-        expr: Gc<Expr>,
-    ) -> Result<Option<(Gc<Expr>, Gc<Expr>)>, Exception> {
-        let val = match &*expr {
-            Expr::Pair(car, cdr) => (car.to_owned(), cdr.to_owned()),
-            Expr::LazyPair(car, cdr, ctx) => (self.eval_cell(ctx, car)?, self.eval_cell(ctx, cdr)?),
-            _ => return Ok(None),
-        };
-        Ok(Some(val))
-    }
-    pub fn split_cons(&mut self, expr: Gc<Expr>) -> Result<(Gc<Expr>, Gc<Expr>), Exception> {
-        match self.split_cons_verb(expr.clone())? {
-            Some(pair) => Ok(pair),
-            None => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
-        }
-    }
-    /// Reify an expr by evaluating all contained LazyExprCells.
-    pub fn reify(&mut self, expr: &Gc<Expr>) -> Result<(), Exception> {
-        if let Some((car, cdr)) = &self.split_cons_verb(expr.clone())? {
-            self.reify(car)?;
-            self.reify(cdr)?;
-        }
-        Ok(())
     }
 
     /// Turn an improper list into the list leading up to the last element,
