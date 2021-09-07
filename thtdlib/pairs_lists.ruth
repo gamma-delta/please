@@ -82,3 +82,5 @@
     (if (list? (car l))
       (append (car l) (flatten (cdr l)))
       (cons (car l) (flatten (cdr l))))))
+
+(define (riap x) (cons (cdr x) (car x)))

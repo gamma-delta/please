@@ -126,7 +126,7 @@ impl Engine {
                     for (k, v) in m.iter() {
                         let expr = engine.from_hashable(k);
                         write!(w, " ")?;
-                        recur(engine, w, expr);
+                        recur(engine, w, expr)?;
                         write!(w, " ")?;
                         recur(engine, w, v.to_owned())?;
                     }
@@ -216,7 +216,7 @@ impl Engine {
                     for (k, v) in m.iter() {
                         let expr = engine.from_hashable(k);
                         write!(w, " ")?;
-                        recur(engine, w, expr);
+                        recur(engine, w, expr)?;
                         write!(w, " ")?;
                         recur(engine, w, v.to_owned())?;
                     }

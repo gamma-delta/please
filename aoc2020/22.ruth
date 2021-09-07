@@ -1,0 +1,68 @@
+; thank the lord this problem looks easier
+(define puzzle-input '(
+  (8 19 46 11 36 10 35 9 24 22 50 1 34 7 18 28 3 38 43 2 6 42 23 12 20)
+  (39 27 44 29 5 48 30 32 15 31 14 21 49 17 45 47 16 26 33 25 13 41 4 40 37)))
+;; (define puzzle-input '(
+;;   (43 19)
+;;   (2 29 14)))
+
+; (win-function a b) returns true if a wins and
+; return ('a | 'b . their deck)
+(define (play-round a-wins? a b)
+  (let loop ([seen-decks (new-map)] [a a] [b b])
+    (cond
+      [(nil? a) (cons 'b b)]
+      [(nil? b) (cons 'a a)]
+      [true (let (
+        [seen-decks (ensure-new-decks seen-decks a b)]
+        [_ (prn (string a b))]
+        ; They don't say what happens when there's a tie so we assume it doesn't happen
+        [?a-won (a-wins? a b)]
+        [win-lose (if ?a-won (list a b) (list b a))]
+        [winner' (apply 
+          (\ (w l) (append (cdr w) (list (car w) (car l)))) 
+          win-lose)]
+        [loser' (apply (\ (_ l) (cdr l)) win-lose)]
+        [win-lose' (if ?a-won (list winner' loser') (list loser' winner'))]) 
+        (apply loop seen-decks win-lose'))])))
+(define (play-game a-wins? a b)
+  ; the fifth is the actual userdata
+  (with-handlers ([(exn-name? 'old-decks) fifth]) 
+    (play-round a-wins? a b)))
+
+(define (score-game deck)
+  (let loop ([deck deck])
+    (if (nil? deck)
+      0
+      (+ (* (list-len deck) (car deck)) (loop (cdr deck))))))
+
+(define (ensure-new-decks seen a b)
+  (let (
+    [new-key (string a b)]
+    [seen (map-insert seen new-key true)])
+    (if (cdar seen)
+      ; we've seen this before oh no, so A wins
+      (! 'old-decks "we've seen these decks before" (cons 'a a))
+      (car seen))))
+
+
+(define (solve-puzzle winfunc)
+  (let (
+    [winner (apply play-game winfunc puzzle-input)]
+    [score (score-game (cdr winner))])
+    (string (car winner) " won the game with a score of " score)))
+
+(define (part1) (prn (solve-puzzle (\ (a b) (> (car a) (car b))))))
+
+(define (part2-winfunc a b)
+  (if (all (\ (l) (> (list-len l) (car l))) (list a b))
+    ; Trigger recursion: check if the winner was a
+    (equals? 'a (car 
+      ; Pplay a subgame using the next that-many cards.
+      ; because everything is immutable, this should in no way mutate this so the "copy" is implicit.
+      (play-game part2-winfunc (take (car a) (cdr a)) (take (car b) (cdr b)))))
+    ; Otherwise normal War rules
+    (> (car a) (car b))))
+(define (part2) (prn (solve-puzzle part2-winfunc)))
+
+(part2)

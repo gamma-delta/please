@@ -1,8 +1,9 @@
 ; Iteration and higher-order functions.
 
+; alwinfy, for should not be lazy ...
 (define (for fn list)
   (if list
-    (lazy-cons (fn (car list)) (for fn (cdr list)))
+    (cons (fn (car list)) (for fn (cdr list)))
     ()))
 
 (define (fold fn acc . lists)
@@ -26,6 +27,16 @@
       (lazy-cons (car list) (filter fn (cdr list)))
       ; ignore and just pass the rest
       (filter fn (cdr list)))))
+
+(define (filter-map fn . rows)
+  (if (all (~ null?) rows)
+    (let (
+      [res (apply fn (for car rows))]
+      [rest (thunk (apply filter-map fn (for cdr rows)))])
+      (if res
+        (lazy-cons res (rest))
+        (rest)))
+    ()))
 
 (define (flat-map f l)
   (apply append (for f l)))

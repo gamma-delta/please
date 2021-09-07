@@ -150,6 +150,28 @@ pub fn string_find(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Exp
     })
 }
 
+pub fn string_replace(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 3, 3)?;
+
+    let from = match &*args[0] {
+        Expr::String(s) => s,
+        _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
+    };
+    let to = match &*args[1] {
+        Expr::String(s) => s,
+        _ => return Err(bad_arg_type(engine, args[1].to_owned(), 1, "string")),
+    };
+    let src = match &*args[2] {
+        Expr::String(s) => s,
+        _ => return Err(bad_arg_type(engine, args[2].to_owned(), 1, "string")),
+    };
+    Ok(Gc::new(Expr::String(src.replace(from, to))))
+}
+
 pub fn string_lines(
     engine: &mut Engine,
     _: Gc<GcCell<Namespace>>,

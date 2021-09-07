@@ -99,6 +99,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("prn", prn as _),
         ("string-slice", string_slice as _),
         ("string-find", string_find as _),
+        ("string-replace", string_replace as _),
         ("string-lines", string_lines as _),
         // formatting
         ("scanf", scanf as _),
@@ -114,7 +115,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         // exceptions
         ("exception", make_exception as _),
         // equality
-        ("obj-equal?", id_equal as _),
+        ("ptr-equal?", id_equal as _),
         ("equal?", equal as _),
         ("pair?", is_pair as _),
         ("number?", is_number as _),

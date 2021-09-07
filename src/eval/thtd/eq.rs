@@ -2,7 +2,7 @@
 
 use super::*;
 
-/// return whether two things are the same object
+/// Return whether things are the same object
 pub fn id_equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     check_min_argc(engine, args, 1)?;
     let (lhs, rest) = args.split_first().unwrap();

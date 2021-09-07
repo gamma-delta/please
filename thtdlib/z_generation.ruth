@@ -17,7 +17,6 @@
             'name ad)])
           `(define (,(string->symbol name) name) ,code)))
       ads)))
-
 (define-macro (make-car-family max) 
   (if (>= max 2)
     `(do (unquote-splicing (car-family max)) (make-car-family ,(sub1 max)))
