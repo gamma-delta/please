@@ -2,8 +2,6 @@ use std::{fs, thread};
 
 use ruth::Engine;
 
-mod repl;
-
 fn main() -> anyhow::Result<()> {
     thread::Builder::new()
         .stack_size(32 * 1024 * 1024)
@@ -40,7 +38,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             if do_repl || !had_any_files {
-                repl::repl(engine)?;
+                engine.repl()
             }
 
             Ok(())

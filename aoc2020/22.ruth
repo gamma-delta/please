@@ -1,10 +1,10 @@
 ; thank the lord this problem looks easier
-(define puzzle-input '(
-  (8 19 46 11 36 10 35 9 24 22 50 1 34 7 18 28 3 38 43 2 6 42 23 12 20)
-  (39 27 44 29 5 48 30 32 15 31 14 21 49 17 45 47 16 26 33 25 13 41 4 40 37)))
 ;; (define puzzle-input '(
-;;   (43 19)
-;;   (2 29 14)))
+;;   (8 19 46 11 36 10 35 9 24 22 50 1 34 7 18 28 3 38 43 2 6 42 23 12 20)
+;;   (39 27 44 29 5 48 30 32 15 31 14 21 49 17 45 47 16 26 33 25 13 41 4 40 37)))
+(define puzzle-input '(
+  (43 19)
+  (2 29 14)))
 
 ; (win-function a b) returns true if a wins and
 ; return ('a | 'b . their deck)
@@ -19,10 +19,8 @@
         ; They don't say what happens when there's a tie so we assume it doesn't happen
         [?a-won (a-wins? a b)]
         [win-lose (if ?a-won (list a b) (list b a))]
-        [winner' (apply 
-          (\ (w l) (append (cdr w) (list (car w) (car l)))) 
-          win-lose)]
-        [loser' (apply (\ (_ l) (cdr l)) win-lose)]
+        [winner' (append (cadr win-lose) (list (caar win-lose) (cdar win-lose)))]
+        [loser' (cddr win-lose)]
         [win-lose' (if ?a-won (list winner' loser') (list loser' winner'))]) 
         (apply loop seen-decks win-lose'))])))
 (define (play-game a-wins? a b)
@@ -58,7 +56,7 @@
   (if (all (\ (l) (> (list-len l) (car l))) (list a b))
     ; Trigger recursion: check if the winner was a
     (equals? 'a (car 
-      ; Pplay a subgame using the next that-many cards.
+      ; Play a subgame using the next that-many cards.
       ; because everything is immutable, this should in no way mutate this so the "copy" is implicit.
       (play-game part2-winfunc (take (car a) (cdr a)) (take (car b) (cdr b)))))
     ; Otherwise normal War rules

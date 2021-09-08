@@ -3,6 +3,7 @@ mod eval;
 mod hasheq;
 mod lazy;
 mod parse;
+mod repl;
 
 use eval::TailRec;
 use hasheq::HashEqExpr;
