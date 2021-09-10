@@ -44,6 +44,26 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'ruth' with file",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ruth",
+                    "--package=ruth"
+                ],
+                "filter": {
+                    "name": "ruth",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "aoc2020/23.ruth"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'ruth'",
             "cargo": {
                 "args": [

@@ -66,7 +66,7 @@
       [(equal? needle (car haystack)) n]
       [true (searcher (add1 n) (cdr haystack))])))
 
-;; Returns (head, tail) around the element requested,
+;; Returns (head . tail) around the element requested,
 ;; or false if it isn't found.
 (define (split-around needle haystack [equal? equal?])
   (let ([n (find needle haystack equal?)])
@@ -84,3 +84,21 @@
       (cons (car l) (flatten (cdr l))))))
 
 (define (riap x) (cons (cdr x) (car x)))
+
+(define (splice n surrounder inner)
+  (append (take n surrounder) inner (leave n surrounder)))
+
+(define (range [start 'never] [end false])
+  (if end
+    (let loop ([n start])
+      (if (or (equal? end 'never) (< n end))
+        (lazy-cons n (loop (add1 n)))
+        ()))
+    (range 0 start)))
+
+; Unlazy range which i needed
+(define (range-direct start end)
+  (let loop ([n (sub1 end)] [acc ()])
+    (if (< n start) 
+      acc
+      (loop (sub1 n) (cons n acc)))))

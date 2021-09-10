@@ -74,6 +74,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("/", div as _),
         ("%", rem as _),
         ("**", pow as _),
+        ("mod", mod_ as _),
         ("<", lt as _),
         (">", gt as _),
         ("<=", le as _),

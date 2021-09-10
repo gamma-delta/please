@@ -6,7 +6,7 @@
   (43 19)
   (2 29 14)))
 
-; (win-function a b) returns true if a wins and
+; (win-function a b) returns true if a wins
 ; return ('a | 'b . their deck)
 (define (play-round a-wins? a b)
   (let loop ([seen-decks (new-map)] [a a] [b b])
@@ -33,6 +33,18 @@
     (if (nil? deck)
       0
       (+ (* (list-len deck) (car deck)) (loop (cdr deck))))))
+
+; Faster than writing lists to hash them is to make a unique hash via ... prime decomposition!
+; Got the idea from Veritasium's video on undecidable math.
+; The problem only contains 50 cards, so at max we should need 50 primes, so i have 60.
+; we could also probably generate the N'th on demand using alwinfy's groovy lazy-cons
+; but i dont want to figure that out
+(define primes '(
+  2	3	5	7	11	13	17	19	23	29	31	37	41	43	47	53	59	61	67	71
+  73	79	83	89	97	101	103	107	109	113	127	131	137	139	149	151	157	163	167	173
+  179	181	191	193	197	199	211	223	227	229	233	239	241	251	257	263	269	271	277	281))
+(define (hash-numlist l)
+  (fold (\ (acc x p) (+ acc (** p x))) 0 l primes))
 
 (define (ensure-new-decks seen a b)
   (let (

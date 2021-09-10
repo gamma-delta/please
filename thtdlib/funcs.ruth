@@ -51,13 +51,5 @@
 (define fn lambda)
 (define-macro (\@ . bodies) `(lambda (@) . ,bodies))
 
-(define (range [start 'never] [end false])
-  (if end
-    (let loop ([n start])
-      (if (or (equal? end 'never) (< n end))
-        (lazy-cons n (loop (add1 n)))
-        ()))
-    (range 0 start)))
-
 (define (always? . _) true)
 (define (never? . _) false)

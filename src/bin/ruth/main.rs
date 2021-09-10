@@ -4,7 +4,7 @@ use ruth::Engine;
 
 fn main() -> anyhow::Result<()> {
     thread::Builder::new()
-        .stack_size(32 * 1024 * 1024)
+        .stack_size(32 * 1024 * 1024 * 32)
         .spawn(|| -> anyhow::Result<()> {
             let mut args = pico_args::Arguments::from_env();
 
@@ -38,7 +38,7 @@ fn main() -> anyhow::Result<()> {
             }
 
             if do_repl || !had_any_files {
-                engine.repl()
+                engine.repl()?;
             }
 
             Ok(())

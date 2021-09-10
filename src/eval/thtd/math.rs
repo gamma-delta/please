@@ -183,6 +183,29 @@ pub fn pow(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
     Ok(res.to_expr())
 }
 
+pub fn mod_(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 2, 2)?;
+
+    let dividend = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    let divisor = Num::from_expr(engine, args[1].to_owned(), 1)?;
+
+    if divisor.as_float() == 0.0 {
+        return Err(engine.make_err(
+            "arithmetic/div-by-zero",
+            format!("cannot divide {} by zero", divisor.to_string()),
+            Some(divisor.to_expr()),
+        ));
+    }
+
+    let rem = match (dividend, divisor) {
+        (Num::Int(l), Num::Int(r)) => Num::Int(l.rem_euclid(r)),
+        (Num::Float(l), Num::Int(r)) => Num::Float(l.rem_euclid(r as _)),
+        (Num::Int(l), Num::Float(r)) => Num::Float((l as f64).rem_euclid(r)),
+        (Num::Float(l), Num::Float(r)) => Num::Float(l.rem_euclid(r)),
+    };
+    Ok(rem.to_expr())
+}
+
 macro_rules! rounders {
     ($name:ident) => {
         pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {

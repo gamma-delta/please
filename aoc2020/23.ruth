@@ -1,0 +1,51 @@
+(define puzzle-input '(9 6 3 2 7 5 4 8 1))
+
+; The standard is to have the "selected" cup be at the front of the list.
+
+; Clamp a number [min, max)
+(define (clamp-wrap n min max)
+  (let ([diff (- max min)]) 
+    (+ (mod (- n min) diff) min)))
+
+(define (shuffle-cups cups min max) (let (
+  [selected (car cups)]
+  [picked-up (take 3 (cdr cups))]
+  [remainder (cons selected (leave 4 cups))]
+  ; Try to find the target label.
+  ; AKA, subtract one till it isn't in the picked-up cups
+  [target-label (let loop ([n (sub1 selected)])
+    (let ([idx (clamp-wrap n min (add1 max))])
+      (if (find idx picked-up)
+        ; oh no we know about this, try again
+        (loop (sub1 n))
+        ; hey we found a label that's alright
+        idx)))]
+  [dest-idx (find target-label remainder)]
+  ; Stick the cups in
+  [spliced-in (splice (add1 dest-idx) remainder picked-up)])
+  ; and then rotate the last cup to the end
+  (extend (cdr spliced-in) (car spliced-in))))
+
+(define (shuffle-cups-a-lot cups min max n)
+  (if (>0 n) 
+    (shuffle-cups-a-lot (shuffle-cups cups min max) min max (sub1 n))
+    cups))
+
+(define (extract-answer cups) (let (
+  [splitted (split-around 1 cups)])
+  (apply string (append (cdr splitted) (car splitted)))))
+
+(define (example-1)
+  (prn (extract-answer (shuffle-cups-a-lot '(3 8 9 1 2 5 4 6 7) 1 9 10))))
+
+(define (part1)
+  (prn (extract-answer (shuffle-cups-a-lot puzzle-input 1 9 100))))
+
+(define (part2) (let (
+  [actual-input (append puzzle-input (range-direct 10 1000001))]
+  [cups' (shuffle-cups-a-lot actual-input 1 1000000 10000000)]
+  ; there's a 2 in a million chance 1 is at the end, so who cares
+  [one-index (find 1 cups')])
+  (prn (apply * (take 2 (leave cups' one-index))))))
+
+(part2)
