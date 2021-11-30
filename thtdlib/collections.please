@@ -1,3 +1,3 @@
-(define (make-map . kvs)
+(define (map/make . kvs)
   ; take the car because the empty map will just return falses
-  (car (apply map-insert (new-map) kvs)))
+  (car (apply map/insert (map/new) kvs)))

@@ -40,24 +40,27 @@
 (define list-!empty? (~ list-empty?)) 
 
 ; Return the first `n` elements of `l`
-(define (take n l) 
+(define (take l n) 
   (if (<=0 n)
     ()
-    (lazy-cons (car l) (take (sub1 n) (cdr l)))))
+    (lazy-cons (car l) (take (cdr l) (sub1 n)))))
 
 ; Skip the first `n` elements of `l`
-(define (leave n l)
+(define (leave l n)
   (if (<=0 n)
     l
-    (leave (sub1 n) (cdr l))))
+    (leave (cdr l) (sub1 n))))
 (define drop leave) ; alwinfy's no fun
 
 ; Omit the nth element of l
-(define (omit n l) 
-  (let ([split (split-at n l)])
-    (append (car split) (cdr split))))
+(define (omit l n) 
+  (let ([split (split-at l n)])
+    (append (car split) (cddr split))))
 
-(define (split-at n l) (cons (take n l) (leave (add1 n) l)))
+(define (reverse l)
+  (and l (append (reverse (cdr l)) (list (car l)))))
+
+(define (split-at l n) (cons (take l n) (leave l n)))
 
 (define (find needle haystack [equal? equal?]) 
   (let searcher ([n 0] [haystack haystack])
@@ -70,7 +73,7 @@
 ;; or false if it isn't found.
 (define (split-around needle haystack [equal? equal?])
   (let ([n (find needle haystack equal?)])
-    (and n (split-at n haystack))))
+    (and n (omit-at haystack n))))
 
 (define (last l)
   (if (null? (cdr l))
@@ -103,24 +106,19 @@
       acc
       (loop (sub1 n) (cons n acc)))))
 
-(define (chunks n l)
-  (let loop ([len (list-len l)] [l l])
-    (if (>= len n)
-      (cons (take n l) (loop (- len n) (leave n l)))
-      (and l l (cons l ())))))
-
-; mergesort
-; https://stackoverflow.com/questions/36193383/difficulty-writing-lisp-recursive-function-for-merge-sort
-(define (sort l [< <])
-  (and l (if (nil? (cdr l)) l
-    (let (
-      [merge-lists (\ (l1 l2) (cond
-        [(and (nil? l1) (nil? l2)) ()]
-        [(nil? l1) (cons (car l2) (merge-lists () (cdr l2)))]
-        [(nil? l2) (cons (car l1) (merge-lists (cdr l1) ()))]
-        [(< (car l1) (car l2)) (cons (car l1) (merge-lists (cdr l1) l2))]
-        (cons (car l2) (merge-lists l1 (cdr l2)))))]
-      [s (chunks 1 l)]
-      [x (sort (car s))]
-      [y (sort (cadr s))])
-      (merge-lists x y)))))
+; thanks alwinfy for impling this in Racket (which I updated to please)
+(define (sort l [less-than? <])
+  (let ([len (list-len l)])
+    (if (< len 2)
+      l
+      (let (
+        [splitted (split-at l (/ len 2))]
+        [head (car splitted)]
+        [tail (cdr splitted)])
+        (let loop ([head (sort head less-than?)] [tail (sort tail less-than?)] [result '()])
+          (cond
+            [(null? head) (append (reverse result) tail)]
+            [(null? tail) (append (reverse result) head)]
+            [(less-than? (car head) (car tail))
+              (loop (cdr head) tail (cons (car head) result))]
+            (loop head (cdr tail) (cons (car tail) result))))))))

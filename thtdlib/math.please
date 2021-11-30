@@ -1,14 +1,11 @@
 (define (add1 x) (+ x 1))
+(define ++ add1)
 (define (sub1 x) (- x 1))
+(define -- sub1)
 
 (define (positive? x) (> x 0))
 (define (negative? x) (< x 0))
 (define (zero? x)     (= x 0))
-(define >0 positive?)
-(define <0 negative?)
-(define =0 zero?)
-(define (<=0 x) (<= x 0))
-(define (>=0 x) (>= x 0))
 
 (define (~ x)
   (if (callable? x)
