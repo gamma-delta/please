@@ -301,6 +301,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db8bcd96cb740d03149cbad5518db9fd87126a10ab519c011893b1754134c468"
 
 [[package]]
+name = "please"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ariadne",
+ "bimap",
+ "derivative",
+ "gc",
+ "itertools",
+ "paste",
+ "pico-args",
+ "termwiz",
+ "thiserror",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -410,22 +426,6 @@ name = "regex-syntax"
 version = "0.6.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
-
-[[package]]
-name = "ruth"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ariadne",
- "bimap",
- "derivative",
- "gc",
- "itertools",
- "paste",
- "pico-args",
- "termwiz",
- "thiserror",
-]
 
 [[package]]
 name = "semver"

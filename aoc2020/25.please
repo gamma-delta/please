@@ -1,0 +1,34 @@
+(define pub-door 5290733)
+(define pub-lock 15231938)
+
+(define (transform1 val subject)
+  (mod (* val subject) 20201227))
+
+(define (transform loop-size subject)
+  (fold
+    (\ (val _) (transform1 val subject))
+    1
+    (range loop-size)))
+
+(define (crack-privkey pubkey subject)
+  (let loop ([maybe-privkey 1] [val 1])
+    ;; (if (=0 (% maybe-privkey 1000))
+    ;;   (prn (string "checking privkey of " maybe-privkey)) ())
+    (let ([val' (transform1 val subject)])
+      (if (= pubkey val')
+        maybe-privkey ; yay!
+        (loop (add1 maybe-privkey) val'))))) ; try again
+
+; Pick A to be our key to crack
+; and transform B
+(define (crack-encryption-key pub-a pub-b)
+  (let ([privkey (crack-privkey pub-a 7)])
+    (cons privkey (transform privkey pub-b))))
+
+(define (test1)
+  (prn (crack-privkey 5764801 7)))
+
+(define (part1)
+  (prn (crack-encryption-key pub-door pub-lock)))
+
+(part1)

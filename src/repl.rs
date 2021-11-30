@@ -74,7 +74,5 @@ impl Engine {
 
             input.clear();
         }
-
-        Ok(())
     }
 }

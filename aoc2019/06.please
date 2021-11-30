@@ -1,0 +1,9 @@
+; We need a doubly-linked tree.
+; Trees are pointers.
+; The first element is a pointer to the parent node.
+; The second element is a list of (data . children...)
+
+(define (tree-add-child tree data)
+  (extend tree (cons tree data)))
+
+

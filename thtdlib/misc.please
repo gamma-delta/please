@@ -10,7 +10,7 @@
         [(list? body) (cons (car body) (cons expr (cdr body)))]
         ; if it's just one bare thing, use it as shorthand for a function call
         ; and insert it as the first argument
-        [true (list body expr)])])
+        (list body expr))])
       `(-> ,threaded . ,(cdr more)))
     expr))
 
@@ -28,7 +28,7 @@
         [(list? body) (extend body expr)]
         ; if it's just one bare thing, use it as shorthand for a function call
         ; and insert it as the first argument
-        [true (list body expr)])])
+        (list body expr))])
       `(-> ,threaded . ,(cdr more)))
     expr))
 

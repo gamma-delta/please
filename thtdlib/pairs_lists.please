@@ -64,7 +64,7 @@
     (cond
       [(not haystack) false]
       [(equal? needle (car haystack)) n]
-      [true (searcher (add1 n) (cdr haystack))])))
+      (searcher (add1 n) (cdr haystack)))))
 
 ;; Returns (head . tail) around the element requested,
 ;; or false if it isn't found.
@@ -102,3 +102,25 @@
     (if (< n start) 
       acc
       (loop (sub1 n) (cons n acc)))))
+
+(define (chunks n l)
+  (let loop ([len (list-len l)] [l l])
+    (if (>= len n)
+      (cons (take n l) (loop (- len n) (leave n l)))
+      (and l l (cons l ())))))
+
+; mergesort
+; https://stackoverflow.com/questions/36193383/difficulty-writing-lisp-recursive-function-for-merge-sort
+(define (sort l [< <])
+  (and l (if (nil? (cdr l)) l
+    (let (
+      [merge-lists (\ (l1 l2) (cond
+        [(and (nil? l1) (nil? l2)) ()]
+        [(nil? l1) (cons (car l2) (merge-lists () (cdr l2)))]
+        [(nil? l2) (cons (car l1) (merge-lists (cdr l1) ()))]
+        [(< (car l1) (car l2)) (cons (car l1) (merge-lists (cdr l1) l2))]
+        (cons (car l2) (merge-lists l1 (cdr l2)))))]
+      [s (chunks 1 l)]
+      [x (sort (car s))]
+      [y (sort (cadr s))])
+      (merge-lists x y)))))

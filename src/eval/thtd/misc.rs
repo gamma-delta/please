@@ -26,3 +26,14 @@ pub fn timeit(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Value]) -
 
     unreachable!()
 }
+
+pub fn exit(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -> EvalResult {
+    check_argc(engine, args, 0, 1)?;
+    let msg = if let Some(msg) = args.get(0) {
+        engine.print_expr(msg.to_owned())?
+    } else {
+        String::from("exited")
+    };
+    // Very professional here
+    panic!("{}", msg);
+}

@@ -32,7 +32,7 @@ pub fn string2symbol(
     let string = if let Expr::String(s) = &*arg {
         s
     } else {
-        return Err(bad_arg_type(engine, arg, 0, "symbol"));
+        return Err(bad_arg_type(engine, arg, 0, "string"));
     };
     let sym = engine.intern_symbol(string);
 

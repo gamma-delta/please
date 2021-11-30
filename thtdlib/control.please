@@ -1,0 +1,9 @@
+(define-macro (cond . bodies)
+  (if bodies
+    (if (= 1 (list-len bodies))
+      (car bodies) ; This way we don't need a [true do-thing] at the end
+      (let ([test (car bodies)])
+        `(if ,(first test)
+          ,(second test)
+          (cond . ,(cdr bodies)))))
+    '(! 'cond/fail "did not find a true condition" '())))

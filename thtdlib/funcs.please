@@ -11,7 +11,7 @@
 
 (define (const it) (\ _ it))
 
-(define (negate fn) (\ (x) (not (fn x))))
+(define (negate fn) (\ x (not (apply fn x))))
 
 (define (conjoin . fs) 
   (\ xs 

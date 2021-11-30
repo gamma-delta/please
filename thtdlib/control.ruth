@@ -1,7 +1,0 @@
-(define-macro (cond . bodies)
-  (if bodies
-    (let ([test (car bodies)])
-      `(if ,(first test)
-        ,(second test)
-        (cond . ,(cdr bodies))))
-    '(! "did not find a true condition" '())))

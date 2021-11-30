@@ -7,6 +7,7 @@ mod eq;
 mod exceptions;
 mod fmt;
 mod funcs;
+mod io;
 mod math;
 mod misc;
 mod pairs_lists;
@@ -20,6 +21,7 @@ use eq::*;
 use exceptions::*;
 use fmt::*;
 use funcs::*;
+use io::*;
 use math::*;
 use misc::*;
 use pairs_lists::*;
@@ -102,6 +104,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("string-find", string_find as _),
         ("string-replace", string_replace as _),
         ("string-lines", string_lines as _),
+        ("string-split", string_split as _),
+        ("string-chars", string_chars as _),
         // formatting
         ("scanf", scanf as _),
         ("read", read as _),
@@ -134,9 +138,12 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("map-get", map_get as _),
         ("map-remove", map_remove as _),
         ("map->list", map2list as _),
+        // io
+        ("read-file", read_file as _),
         // etc
         ("reload-thtdlib", reload_thtd as _),
         ("timeit", timeit as _),
+        ("exit", exit as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
