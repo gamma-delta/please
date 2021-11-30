@@ -164,9 +164,12 @@ pub fn rem(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
 }
 
 pub fn pow(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
-    check_argc(engine, args, 2, 2)?;
+    check_argc(engine, args, 1, 2)?;
 
     let lhs = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    if args.len() <= 1 {
+        return Ok(Num::Float(lhs.as_float().exp()).to_expr());
+    }
     let rhs = Num::from_expr(engine, args[1].to_owned(), 0)?;
     let res = match (lhs, rhs) {
         (Num::Int(l), Num::Int(r)) => {
@@ -181,6 +184,18 @@ pub fn pow(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> 
         (Num::Float(l), Num::Float(r)) => Num::Float(l.powf(r)),
     };
     Ok(res.to_expr())
+}
+
+pub fn log(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 2)?;
+
+    let lhs = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    if args.len() <= 1 {
+        return Ok(Num::Float(lhs.as_float().ln()).to_expr());
+    }
+    let rhs = Num::from_expr(engine, args[1].to_owned(), 0)?;
+    // (log a b) = log_a of b
+    Ok(Num::Float(rhs.as_float().log(lhs.as_float())).to_expr())
 }
 
 pub fn mod_(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {

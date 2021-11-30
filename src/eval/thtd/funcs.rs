@@ -109,11 +109,10 @@ fn lambda_macro_inner(
     Ok(TailRec::Exit(Gc::new(proc)))
 }
 
-fn apply_inner(
+pub fn apply(
     engine: &mut Engine,
     env: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
-    do_final_eval: bool,
 ) -> Result<TailRec, Exception> {
     check_min_argc(engine, args, 1)?;
 
@@ -142,27 +141,28 @@ fn apply_inner(
     let fnargs = fnargs.into_iter().map(quote).collect::<Vec<_>>();
     let fnargs = Engine::list_to_sexp(&fnargs[..]);
     let full_call = Expr::Pair(quote(args[0].to_owned()), fnargs);
-    Ok(if do_final_eval {
-        TailRec::TailRecur(Gc::new(full_call), env)
-    } else {
-        TailRec::Exit(Gc::new(full_call))
-    })
+    Ok(TailRec::TailRecur(Gc::new(full_call), env))
 }
 
-pub fn apply(
-    engine: &mut Engine,
-    env: Gc<GcCell<Namespace>>,
-    args: &[Gc<Expr>],
+pub fn macro_expand(
+    _engine: &mut Engine,
+    _env: Gc<GcCell<Namespace>>,
+    _args: &[Gc<Expr>],
 ) -> Result<TailRec, Exception> {
-    apply_inner(engine, env, args, true)
-}
+    todo!();
+    /*
+    check_min_argc(engine, args, 1)?;
 
-pub fn apply_no_expand(
-    engine: &mut Engine,
-    env: Gc<GcCell<Namespace>>,
-    args: &[Gc<Expr>],
-) -> Result<TailRec, Exception> {
-    apply_inner(engine, env, args, false)
+    // Keep evaling until it's no longer a macro call
+    let mut expr = args[0].to_owned();
+    let is_macro = |x: &Expr| match x {
+        Expr::Procedure { env, .. } => env.is_none(),
+        _ => false,
+    };
+    while is_macro(&*expr) {
+        engine.eval_rec(env, args[0].to_owned(), false);
+    }
+    */
 }
 
 /// Return the function as created, as `(args...) bodies...)`

@@ -7,6 +7,8 @@
 (define (negative? x) (< x 0))
 (define (zero? x)     (= x 0))
 
+(define (!=) (~ =))
+
 (define (~ x)
   (if (callable? x)
     (negate x)
@@ -15,30 +17,73 @@
 (define (divisible-by x divisor)
   (=0 (% x divisor)))
 
-(define-macro (derivative respect-to expr) 
-  (cond
-    [(number? expr) 0.0]
-    [(equal? respect-to expr) 1.0]
-    [list? (let ([op (car expr)] [body (cdr expr)])
-      (switch op
-        ; f + g -> f' + g'
-        [+ `(apply + ,(for (curry derivative respect-to) body))]
-        ; f - g -> f' - g'
-        ; -f -> -f'
-        ; both these cases are covered!
-        [- `(apply - ,(for (curry derivative respect-to) body))]
-        ; f*g -> f'*g + g'*f
-        ; this works even when f or g is a constant
-        [* (if (<= (list-len body) 2)
-          `(+ 
-            (* ,(derivative respect-to (first body)) ,(second body))
-            (* ,(derivative respect-to (second body)) ,(first body)))
-          ; f*g*h -> (f*g)' * h
-          ; (* f g h) -> (d/dx (* (* f g) h))
-          (derivative respect-to `(* ,(cons '* (take body 2)) ,(leave body 2))))]
-        ; x^n -> nx^(n-1)
-        ; we'll worry about n^x later
-        [** (if (and (= 2 (list-len body)) (equal? (first body) respect-to) (number? (second body)))
-          `(* ,(second body) (** ,respect-to ,(-- (second body))))
-          (! 'derivative/bad-pow "power must be of the form (** x constant)" expr))]))]
-    (! 'derivative/bad-type (curry string "cannot take derivative of ") expr)))
+(define (derivative respect-to expr)
+  (clean-math-expr (let loop ([expr expr])
+    (cond 
+      [(number? expr) 0.0]
+      [(equal? respect-to expr) 1.0]
+      [list? (let ([op (car expr)] [body (cdr expr)])
+        (switch (eval op)
+          ; f + g -> f' + g'
+          [+ `(+ ,@(for loop body))]
+          ; f - g -> f' - g'
+          ; -f -> -f'
+          ; both these cases are covered!
+          [- `(- ,@(for loop body))]
+          ; f*g -> f'*g + g'*f
+          ; this works even when f or g is a constant
+          [* (if (<= (list-len body) 2)
+            `(+ 
+              (* ,(loop (first body)) ,(second body))
+              (* ,(loop (second body)) ,(first body)))
+            ; f*g*h -> (f*g)' * h
+            ; (* f g h) -> (d/dx (* (* f g) h))
+            (loop `(* ,(cons '* (take body 2)) ,@(leave body 2))))]
+          [/ (switch (list-len body)
+            [1 (let ([f (car body)]) `(- (/ ,(loop f) (** ,f 2.0))))]
+            [2 (let ([f (first body)] [g (second body)])
+              `(/ 
+                (- (* ,(loop f) ,g) (* ,(loop g) ,f))
+                (** ,g 2.0)))]
+            (loop `(/ ,(cons '/ (take body 2) ,@(leave body 2)))))]
+          ; x^n -> nx^(n-1)
+          ; we'll worry about n^x later
+          [** (if (and (= 2 (list-len body)) (equal? (first body) respect-to) (number? (second body)))
+            `(* ,(second body) (** ,respect-to ,(-- (second body))))
+            (! 'derivative/bad-pow "power must be of the form (** x constant)" expr))]
+          (! 'derivative/bad-op (curry string "cannot take the derivative of ") op)))]
+      (! 'derivative/bad-type (curry string "cannot take derivative of ") expr)))))
+
+(define (derivative-lambda fn) (let (
+  [opened (open-procedure fn)]
+  [args (car opened)]
+  [bodies (cdr opened)])
+  (if (all (compose =1 list-len) (list args bodies))
+    (let (
+      [respect-to (car args)]
+      [body (car bodies)])
+      (eval `(lambda (,respect-to) ,(derivative respect-to body))))
+    (! 'derivative-lambda/bad-shape "expected a function with one argument and 1 body expr" fn))))
+
+(define (clean-math-expr expr)
+  ; For some operations, (@ x) = x
+  (define (monad-nop expr) (if (= 2 (list-len expr)) (second expr) expr))
+  (which expr
+    [symbol? expr]
+    [number? (->inexact expr)]
+    [list? (let ([op (car expr)] [body (map clean-math-expr (cdr expr))])
+      (switch (eval op)
+        ; 0 is the identity for + and -
+        [+ (monad-nop (cons '+ (filter (\ (x) (not-equal? x 0.0)) body)))]
+        [- (cons '- (filter (\ (x) (not-equal? x 0.0)) body))]
+        ; 1 is the identity for * and /
+        ; for *, a 0 clears it
+        ; for /, ... uh just leave it as a time bomb
+        [* (if (find 0.0 body) 
+          0.0 
+          (monad-nop (cons '* (filter (\ (x) (not-equal? x 1.0)) body))))]
+        [/ (cons '/ (filter (\ (x) (not-equal? x 1.0)) body))]
+        ; Catchall to just do nothing
+        expr))]
+    (! 'clean-math-expr/bad-type "cannot clean this type" expr)))
+

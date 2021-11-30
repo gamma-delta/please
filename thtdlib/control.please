@@ -27,5 +27,5 @@
       (let ([test (car bodies)])
         `(if (,(first test) ,x)
           ,(second test)
-          (switch ,x . ,(cdr bodies)))))
+          (which ,x . ,(cdr bodies)))))
       `(! 'which/fail "did not find a true condition" ,x)))

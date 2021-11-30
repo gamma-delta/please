@@ -57,6 +57,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("lazy-cons", lazy_cons as _),
         ("catch", catch as _),
         ("with-handler", with_handler as _),
+        // ("macro-expand", macro_expand as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {
@@ -77,6 +78,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("%", rem as _),
         ("**", pow as _),
         ("mod", mod_ as _),
+        ("log", log as _),
         ("<", lt as _),
         (">", gt as _),
         ("<=", le as _),
@@ -154,10 +156,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         });
         thtdlib.borrow_mut().insert(symbol, handle);
     }
-    for (name, tail_func) in [
-        ("apply", apply as _),
-        ("apply-no-expand", apply_no_expand as _),
-    ] {
+    for (name, tail_func) in [("apply", apply as _)] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
             func: Err(tail_func),

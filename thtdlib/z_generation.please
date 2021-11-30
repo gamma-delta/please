@@ -28,7 +28,7 @@
     (\ (op) 
       (let ([name (string->symbol (string op n))])
         `(define (,name x) (,op x ,n))))
-    (list '< '<= '= '>= '>)))
+    (list '< '<= '= '>= '> '!=)))
 (define-macro (make-cmpnum-family n) 
   (if (>= n 0)
     `(do

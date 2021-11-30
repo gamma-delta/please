@@ -9,3 +9,4 @@
 ; i am sick of typoing this
 (define equals? equal?)
 
+(define not-equal? (negate equal?))

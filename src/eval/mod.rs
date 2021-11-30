@@ -32,7 +32,7 @@ impl Engine {
             };
         }
     }
-    /// Helper function that either returns Err(next expr) or Ok(final result)
+    /// Helper function that either returns Err(next expr) or Ok(final result).
     fn eval_rec(
         &mut self,
         env: Gc<GcCell<Namespace>>,
