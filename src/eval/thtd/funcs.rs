@@ -1,5 +1,7 @@
 //! Defining and composing functions.
 
+use itertools::Itertools;
+
 use super::*;
 use crate::eval::TailRec;
 
@@ -107,10 +109,19 @@ fn lambda_macro_inner(
     Ok(TailRec::Exit(Gc::new(proc)))
 }
 
-pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> Result<TailRec, Exception> {
+fn apply_inner(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+    do_final_eval: bool,
+) -> Result<TailRec, Exception> {
     check_min_argc(engine, args, 1)?;
 
-    let mut fnargs = args[1..args.len() - 1].to_owned();
+    let mut fnargs = if args.len() >= 2 {
+        args[1..args.len() - 1].to_owned()
+    } else {
+        Vec::new()
+    };
     if let Some(trail) = args.last() {
         let trail = match engine.sexp_to_list(trail.to_owned())? {
             Some(it) => it,
@@ -131,5 +142,68 @@ pub fn apply(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
     let fnargs = fnargs.into_iter().map(quote).collect::<Vec<_>>();
     let fnargs = Engine::list_to_sexp(&fnargs[..]);
     let full_call = Expr::Pair(quote(args[0].to_owned()), fnargs);
-    Ok(TailRec::TailRecur(Gc::new(full_call), env))
+    Ok(if do_final_eval {
+        TailRec::TailRecur(Gc::new(full_call), env)
+    } else {
+        TailRec::Exit(Gc::new(full_call))
+    })
+}
+
+pub fn apply(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
+    apply_inner(engine, env, args, true)
+}
+
+pub fn apply_no_expand(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> Result<TailRec, Exception> {
+    apply_inner(engine, env, args, false)
+}
+
+/// Return the function as created, as `(args...) bodies...)`
+pub fn open_fn(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let (args, body, variadic) = match &*args[0] {
+        Expr::Procedure {
+            args,
+            body,
+            variadic,
+            ..
+        } => (args, body, variadic),
+        _ => {
+            return Err(bad_arg_type(
+                engine,
+                args[0].to_owned(),
+                1,
+                "non-native function",
+            ))
+        }
+    };
+
+    let args = args
+        .iter()
+        .map(|(sym, default)| {
+            let sym = Gc::new(Expr::Symbol(*sym));
+            if let Some(default) = default {
+                Engine::list_to_sexp(&[sym, default.to_owned()])
+            } else {
+                sym
+            }
+        })
+        .collect_vec();
+    let args = if *variadic {
+        // unwrap is ok because variadic fns always have at least 1 arg
+        let (end, start) = args.split_last().unwrap();
+        Engine::list_to_improper_sexp(start, end.to_owned())
+    } else {
+        Engine::list_to_sexp(&args)
+    };
+    let body = Engine::list_to_sexp(body);
+    Ok(Gc::new(Expr::Pair(args, body)))
 }

@@ -7,3 +7,25 @@
           ,(second test)
           (cond . ,(cdr bodies)))))
     '(! 'cond/fail "did not find a true condition" '())))
+
+; Like cond, but where [expr body] means [(equal? x expr) body]
+(define-macro (switch x . bodies)
+  (if bodies
+    (if (= 1 (list-len bodies))
+      (car bodies)
+      (let ([test (car bodies)])
+        `(if (equal? ,x ,(first test))
+          ,(second test)
+          (switch ,x . ,(cdr bodies)))))
+      `(! 'switch/fail "did not find a true condition" ,x)))
+
+; Like cond, but where [expr body] means [(expr x) body]
+(define-macro (which x . bodies)
+  (if bodies
+    (if (= 1 (list-len bodies))
+      (car bodies)
+      (let ([test (car bodies)])
+        `(if (,(first test) ,x)
+          ,(second test)
+          (switch ,x . ,(cdr bodies)))))
+      `(! 'which/fail "did not find a true condition" ,x)))

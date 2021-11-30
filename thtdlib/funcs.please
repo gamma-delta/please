@@ -53,3 +53,13 @@
 
 (define (always? . _) true)
 (define (never? . _) false)
+
+(define (argc x) 
+  (let ([args (first (open-procedure x))])
+    ; If the arguments are *not* a proper list it's a vararg function
+    (if (list? args)
+      (list-len args)
+      'inf)))
+
+(define-macro (macro-expand m)
+  (apply-no-expand (car m) (cdr m)))

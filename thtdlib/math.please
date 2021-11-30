@@ -14,3 +14,31 @@
 
 (define (divisible-by x divisor)
   (=0 (% x divisor)))
+
+(define-macro (derivative respect-to expr) 
+  (cond
+    [(number? expr) 0.0]
+    [(equal? respect-to expr) 1.0]
+    [list? (let ([op (car expr)] [body (cdr expr)])
+      (switch op
+        ; f + g -> f' + g'
+        [+ `(apply + ,(for (curry derivative respect-to) body))]
+        ; f - g -> f' - g'
+        ; -f -> -f'
+        ; both these cases are covered!
+        [- `(apply - ,(for (curry derivative respect-to) body))]
+        ; f*g -> f'*g + g'*f
+        ; this works even when f or g is a constant
+        [* (if (<= (list-len body) 2)
+          `(+ 
+            (* ,(derivative respect-to (first body)) ,(second body))
+            (* ,(derivative respect-to (second body)) ,(first body)))
+          ; f*g*h -> (f*g)' * h
+          ; (* f g h) -> (d/dx (* (* f g) h))
+          (derivative respect-to `(* ,(cons '* (take body 2)) ,(leave body 2))))]
+        ; x^n -> nx^(n-1)
+        ; we'll worry about n^x later
+        [** (if (and (= 2 (list-len body)) (equal? (first body) respect-to) (number? (second body)))
+          `(* ,(second body) (** ,respect-to ,(-- (second body))))
+          (! 'derivative/bad-pow "power must be of the form (** x constant)" expr))]))]
+    (! 'derivative/bad-type (curry string "cannot take derivative of ") expr)))

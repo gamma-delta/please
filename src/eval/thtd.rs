@@ -96,6 +96,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("bitshift", bitwise_shift as _),
         ("bitrot", bitwise_rotate as _),
         ("bitcount", popcnt as _),
+        // functions
+        ("open-procedure", open_fn as _),
         // string
         ("string", to_string as _),
         ("string/len", string_len as _),
@@ -152,7 +154,10 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         });
         thtdlib.borrow_mut().insert(symbol, handle);
     }
-    for (name, tail_func) in [("apply", apply as _)] {
+    for (name, tail_func) in [
+        ("apply", apply as _),
+        ("apply-no-expand", apply_no_expand as _),
+    ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
             func: Err(tail_func),

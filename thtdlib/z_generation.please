@@ -14,8 +14,8 @@
               "r")]
           [code (fold 
             (lambda (a n) (list (if n 'car 'cdr) a))
-            'name ad)])
-          `(define (,(string->symbol name) name) ,code)))
+            'x ad)])
+          `(define (,(string->symbol name) x) ,code)))
       ads)))
 (define-macro (make-car-family max) 
   (if (>= max 2)
