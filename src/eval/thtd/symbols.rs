@@ -18,7 +18,7 @@ pub fn symbol2string(
         .get_symbol_str(sym)
         .unwrap_or("<unknown>")
         .to_string();
-    Ok(Gc::new(Expr::String(string)))
+    Ok(Gc::new(Expr::String(string.into_bytes())))
 }
 
 pub fn string2symbol(
@@ -34,7 +34,7 @@ pub fn string2symbol(
     } else {
         return Err(bad_arg_type(engine, arg, 0, "string"));
     };
-    let sym = engine.intern_symbol(string);
+    let sym = engine.intern_symbol(&String::from_utf8_lossy(string));
 
     Ok(Gc::new(Expr::Symbol(sym)))
 }

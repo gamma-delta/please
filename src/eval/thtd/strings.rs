@@ -9,7 +9,7 @@ pub fn to_string(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>
     for expr in args {
         out.push_str(&engine.print_expr(expr.to_owned())?);
     }
-    Ok(Gc::new(Expr::String(out)))
+    Ok(Gc::new(Expr::String(out.into_bytes())))
 }
 
 pub fn string_len(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
@@ -30,7 +30,7 @@ pub fn string_slice(
     check_argc(engine, args, 2, 3)?;
 
     let string = match &*args[0] {
-        Expr::String(s) => s.as_str(),
+        Expr::String(s) => s,
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
     };
 
@@ -64,21 +64,6 @@ pub fn string_slice(
             }
         },
     };
-
-    if !string.is_char_boundary(start) {
-        return Err(engine.make_err(
-            "string/slice-boundary",
-            format!("{} is not on a char boundary", start),
-            None,
-        ));
-    }
-    if !string.is_char_boundary(end) {
-        return Err(engine.make_err(
-            "string/slice-boundary",
-            format!("{} is not on a char boundary", end),
-            None,
-        ));
-    }
 
     if start > end {
         return Err(engine.make_err(
@@ -144,8 +129,12 @@ pub fn string_find(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Exp
         Expr::String(s) => s,
         _ => return Err(bad_arg_type(engine, args[1].to_owned(), 1, "string")),
     };
-    Ok(match haystack.find(needle) {
-        Some(idx) => Gc::new(Expr::Integer(idx as _)),
+
+    let found = haystack
+        .windows(needle.len())
+        .position(|slice| slice == needle);
+    Ok(match found {
+        Some(it) => Gc::new(Expr::Integer(it as _)),
         None => engine.make_bool(false),
     })
 }
@@ -155,7 +144,7 @@ pub fn string_replace(
     _: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],
 ) -> EvalResult {
-    check_argc(engine, args, 3, 3)?;
+    check_argc(engine, args, 3, 4)?;
 
     let from = match &*args[0] {
         Expr::String(s) => s,
@@ -165,11 +154,37 @@ pub fn string_replace(
         Expr::String(s) => s,
         _ => return Err(bad_arg_type(engine, args[1].to_owned(), 1, "string")),
     };
-    let src = match &*args[2] {
-        Expr::String(s) => s,
-        _ => return Err(bad_arg_type(engine, args[2].to_owned(), 1, "string")),
+    let mut src = match &*args[2] {
+        Expr::String(s) => s.to_owned(),
+        _ => return Err(bad_arg_type(engine, args[2].to_owned(), 2, "string")),
     };
-    Ok(Gc::new(Expr::String(src.replace(from, to))))
+    let maxcount = match args.get(3) {
+        None => None,
+        Some(expr) => match &**expr {
+            Expr::Integer(i) if *i > 0 => Some(*i as usize),
+            _ => {
+                return Err(bad_arg_type(
+                    engine,
+                    args[3].to_owned(),
+                    3,
+                    "positive integer",
+                ))
+            }
+        },
+    };
+
+    let mut positions = src
+        .windows(from.len())
+        .enumerate()
+        .filter_map(|(idx, slice)| (slice == from).then(|| idx))
+        .collect_vec();
+    if let Some(max) = maxcount {
+        positions.truncate(max);
+    }
+    for pos in positions.into_iter().rev() {
+        src.splice(pos..pos + from.len(), to.iter().copied());
+    }
+    Ok(Gc::new(Expr::String(src)))
 }
 
 pub fn string_lines(
@@ -183,11 +198,18 @@ pub fn string_lines(
         Expr::String(s) => s,
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
     };
-    let lines = s
-        .lines()
-        .map(|s| Gc::new(Expr::String(s.to_owned())))
-        .collect_vec();
-    Ok(Engine::list_to_sexp(&lines))
+    let mut lines = s.split(|byte| *byte == b'\n').collect_vec();
+    // ah yes, ergonomic rust syntax
+    if lines.last() == Some(&&[][..]) {
+        lines.pop();
+    }
+
+    Ok(Engine::list_to_sexp(
+        &lines
+            .into_iter()
+            .map(|line| Gc::new(Expr::String(line.to_owned())))
+            .collect_vec(),
+    ))
 }
 
 pub fn string_split(
@@ -206,11 +228,24 @@ pub fn string_split(
         _ => return Err(bad_arg_type(engine, args[1].to_owned(), 1, "string")),
     };
 
-    let lines = s
-        .split(divider)
-        .map(|s| Gc::new(Expr::String(s.to_owned())))
+    let split_poses = s
+        .windows(divider.len())
+        .enumerate()
+        .filter_map(|(idx, slice)| (slice == divider).then(|| idx))
         .collect_vec();
-    Ok(Engine::list_to_sexp(&lines))
+
+    let mut out = Vec::new();
+    if !split_poses.is_empty() {
+        let span = &s[..split_poses[0]];
+        out.push(Gc::new(Expr::String(span.to_owned())));
+        for poses in split_poses.windows(2) {
+            let span = &s[poses[0] + divider.len()..poses[1]];
+            out.push(Gc::new(Expr::String(span.to_owned())));
+        }
+        let span = &s[split_poses.last().unwrap() + divider.len()..];
+        out.push(Gc::new(Expr::String(span.to_owned())));
+    }
+    Ok(Engine::list_to_sexp(&out))
 }
 
 pub fn string_chars(
@@ -225,8 +260,8 @@ pub fn string_chars(
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
     };
     let lines = s
-        .chars()
-        .map(|s| Gc::new(Expr::String(s.to_string())))
+        .iter()
+        .map(|s| Gc::new(Expr::String(vec![*s])))
         .collect_vec();
     Ok(Engine::list_to_sexp(&lines))
 }

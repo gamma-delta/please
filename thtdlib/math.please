@@ -54,7 +54,7 @@
           (! 'derivative/bad-op (curry string "cannot take the derivative of ") op)))]
       (! 'derivative/bad-type (curry string "cannot take derivative of ") expr)))))
 
-(define (derivative-lambda fn) (let (
+(define (derivative/lambda fn) (let (
   [opened (open-procedure fn)]
   [args (car opened)]
   [bodies (cdr opened)])

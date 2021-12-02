@@ -11,6 +11,8 @@ mod io;
 mod math;
 mod misc;
 mod pairs_lists;
+mod peg;
+mod profiling;
 mod quoting;
 mod strings;
 mod symbols;
@@ -25,6 +27,7 @@ use io::*;
 use math::*;
 use misc::*;
 use pairs_lists::*;
+use profiling::*;
 use quoting::*;
 use strings::*;
 use symbols::*;
@@ -133,17 +136,25 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("nil?", is_nil as _),
         ("string?", is_string as _),
         ("symbol?", is_symbol as _),
+        ("map?", is_map as _),
         ("callable?", is_callable as _),
         ("procedure?", is_procedure as _),
         ("macro?", is_macro as _),
         // collections
         ("map/new", new_map as _),
         ("map/insert", map_insert as _),
+        ("map/insert/clobbered", map_insert_clobbered as _),
         ("map/get", map_get as _),
         ("map/remove", map_remove as _),
+        ("map/remove/clobbered", map_remove_clobbered as _),
+        ("map/len", map_len as _),
         ("map->list", map2list as _),
         // io
         ("io/read-file", read_file as _),
+        // profiling
+        ("profiling/start", start_profiling as _),
+        ("profiling/check", check_profiling as _),
+        ("profiling/stop", end_profiling as _),
         // etc
         ("reload-thtdlib", reload_thtd as _),
         ("timeit", timeit as _),
@@ -269,7 +280,7 @@ pub fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) 
     let msg = format!("in argument #{}, expected {}", idx, want);
     let data = Engine::list_to_sexp(&[
         Gc::new(Expr::Integer(idx as _)),
-        Gc::new(Expr::String(want.to_string())),
+        Gc::new(Expr::String(want.as_bytes().to_owned())),
         arg,
     ]);
     engine.make_err("application/arg-type", msg, Some(data))

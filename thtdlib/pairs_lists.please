@@ -4,9 +4,11 @@
   (if (> (list-len l) 1)
     (extend (list-rev (cdr l)) (car l))
     l))
+(define list/rev list-rev)
 
 (define (list-len l)
   (fold (lambda (acc _) (add1 acc)) 0 l))
+(define list/len list-len)
 
 (define (append1 l x) 
   (if l
@@ -24,6 +26,7 @@
   (if (<=0 n)
     (car l)
     (list-nth (cdr l) (sub1 n))))
+(define list/nth list-nth)
 
 (define (first l)   (car l))
 (define (second l)  (list-nth l 1))
@@ -122,3 +125,8 @@
             [(less-than? (car head) (car tail))
               (loop (cdr head) tail (cons (car head) result))]
             (loop head (cdr tail) (cons (car tail) result))))))))
+
+(define (windows l n)
+  (if (>= (list/len l) n)
+    (lazy-cons (take l n) (windows (leave l 1) n))
+    ()))

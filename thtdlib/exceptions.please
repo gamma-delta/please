@@ -23,6 +23,15 @@
       (or ,message (string "assertion failed: " ',body " returned " result)) 
       result))))
 
+(define-macro (assert-eq lhs rhs 
+  [name ''assert]
+  [message false])
+    `(let ([lhs ,lhs] [rhs ,rhs] [result (equal? lhs rhs)])
+      (or result (! 
+        ,name 
+        (or ,message (string "assertion failed: (equal? " lhs " "  rhs ") returned false")) 
+        result))))
+
 (define (exn-name? sym [partial false])
   (if partial
     (\ (exn) (string-starts-with (symbol->string sym) (symbol->string (second exn))))

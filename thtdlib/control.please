@@ -9,23 +9,35 @@
     '(! 'cond/fail "did not find a true condition" '())))
 
 ; Like cond, but where [expr body] means [(equal? x expr) body]
+; and [(exprs...) body] means [(equal-any? x . exprs) body]
 (define-macro (switch x . bodies)
   (if bodies
     (if (= 1 (list-len bodies))
       (car bodies)
-      (let ([test (car bodies)])
-        `(if (equal? ,x ,(first test))
-          ,(second test)
+      (let (
+        [arm (car bodies)]
+        [test (first arm)]
+        [predicate (if (list? test)
+          `(equal-any? ,x ,@test)
+          `(equal? ,x ,test))])
+        `(if ,predicate
+          ,(second arm)
           (switch ,x . ,(cdr bodies)))))
       `(! 'switch/fail "did not find a true condition" ,x)))
 
 ; Like cond, but where [expr body] means [(expr x) body]
+; and [(exprs...) body] means [((disjoin . exprs) x) body]
 (define-macro (which x . bodies)
   (if bodies
     (if (= 1 (list-len bodies))
       (car bodies)
-      (let ([test (car bodies)])
-        `(if (,(first test) ,x)
-          ,(second test)
+      (let (
+        [arm (car bodies)]
+        [test (first arm)]
+        [predicate (if (list? test)
+          `((disjoin ,@test) ,x)
+          `(,test ,x))])
+        `(if ,predicate
+          ,(second arm)
           (which ,x . ,(cdr bodies)))))
       `(! 'which/fail "did not find a true condition" ,x)))

@@ -1,18 +1,21 @@
 mod display;
 mod eval;
-mod hasheq;
+mod hash;
 mod lazy;
 mod parse;
 mod repl;
 
-use eval::TailRec;
-use hasheq::HashEqExpr;
-use itertools::Itertools;
+use hash::GcMap;
 pub use parse::{ExprParseError, ExprParseErrorInfo};
 
+use eval::TailRec;
+use itertools::Itertools;
+
 use std::{
+    cmp::{Eq, PartialEq},
     collections::HashMap,
     fmt::{self, Write},
+    hash::Hash,
 };
 
 #[macro_use]
@@ -28,7 +31,7 @@ use gc::{Finalize, Gc, GcCell, Trace};
 pub enum Expr {
     Integer(i64),
     Float(f64),
-    String(String),
+    String(Vec<u8>),
     /// Interned string.
     ///
     /// This number is the ID of this symbol and is used for quick equality
@@ -65,7 +68,7 @@ pub enum Expr {
         name: Option<Symbol>,
     },
 
-    Map(HashMap<HashEqExpr, Gc<Expr>>),
+    Map(GcMap),
 }
 
 impl Expr {
@@ -85,6 +88,99 @@ impl Expr {
     }
 }
 
+/// Because NaN was a mistake, all NaN are considered equal to each other.
+/// I don't care what the IEEE says. Shut up.
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        use Expr::*;
+        match (self, other) {
+            (Integer(a), Integer(b)) => a == b,
+            (Float(a), Float(b)) => {
+                if a.is_nan() && b.is_nan() {
+                    true
+                } else {
+                    a == b
+                }
+            }
+            (String(a), String(b)) => a == b,
+            (Symbol(a), Symbol(b)) => a == b,
+            (Nil, Nil) => true,
+            (Pair(ahead, atail), Pair(bhead, btail)) => ahead == bhead && atail == btail,
+            (SpecialForm { func: a, .. }, SpecialForm { func: b, .. }) => std::ptr::eq(a, b),
+            (NativeProcedure { func: a, .. }, NativeProcedure { func: b, .. }) => {
+                std::ptr::eq(a, b)
+            }
+            (
+                Procedure {
+                    args: a_args,
+                    body: a_body,
+                    env: a_env,
+                    variadic: a_variadic,
+                    ..
+                },
+                Procedure {
+                    args: b_args,
+                    body: b_body,
+                    env: b_env,
+                    variadic: b_variadic,
+                    ..
+                },
+            ) => {
+                a_args == b_args
+                    && a_body == b_body
+                    && a_env.is_some() == b_env.is_some()
+                    && a_variadic == b_variadic
+            }
+            (Map(a), Map(b)) => a == b,
+
+            (LazyPair(..), LazyPair(..)) => std::ptr::eq(self, other),
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Expr {}
+
+impl Hash for Expr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        use Expr::*;
+        std::mem::discriminant(self).hash(state);
+
+        match self {
+            Integer(x) => state.write_i64(*x),
+            Float(x) => state.write_u64(if x.is_nan() {
+                // nansbad!
+                0x6e616e7362616421
+            } else {
+                x.to_bits()
+            }),
+            String(x) => x.hash(state),
+            Symbol(x) => state.write_u64(*x),
+            Nil => {}
+            Pair(head, tail) => {
+                head.hash(state);
+                tail.hash(state);
+            }
+            LazyPair(..) => std::ptr::hash(self, state),
+            SpecialForm { func, .. } => std::ptr::hash(func, state),
+            NativeProcedure { func, .. } => std::ptr::hash(func, state),
+            Procedure {
+                args,
+                body,
+                env,
+                variadic,
+                ..
+            } => {
+                args.hash(state);
+                body.hash(state);
+                env.is_some().hash(state);
+                variadic.hash(state);
+            }
+            Map(map) => map.hash(state),
+        }
+    }
+}
+
 /// Execution state and reader.
 #[derive(Debug, Clone)]
 pub struct Engine {
@@ -95,6 +191,10 @@ pub struct Engine {
 
     /// Standard library, aka top level namespace
     thtdlib: Gc<GcCell<Namespace>>,
+
+    /// If this is Some, we're recording profiling information.
+    /// Maps symbols to how many times we've evaled them and the total number of seconds we've been executing it form
+    profiler: Option<HashMap<u64, (u64, f64)>>,
 }
 
 impl Default for Engine {
@@ -112,6 +212,7 @@ impl Engine {
                 mappings: HashMap::new(),
                 parent: None,
             })),
+            profiler: None,
         };
         eval::add_thtandard_library(&mut out);
         out
@@ -325,7 +426,7 @@ impl Exception {
         Engine::list_to_sexp(&[
             Gc::new(Expr::Symbol(engine.intern_symbol("!"))),
             Gc::new(Expr::Symbol(self.id)),
-            Gc::new(Expr::String(self.info)),
+            Gc::new(Expr::String(self.info.into_bytes())),
             trace,
             self.data,
         ])

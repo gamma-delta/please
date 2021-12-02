@@ -8,13 +8,13 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
     check_argc(engine, args, 2, 2)?;
 
     let mut data = if let Expr::String(s) = &*args[0] {
-        s.as_str()
+        s.as_slice()
     } else {
         return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string"));
     };
 
     let mut fmt = if let Expr::String(s) = &*args[1] {
-        s.as_str()
+        s.as_slice()
     } else {
         return Err(bad_arg_type(engine, args[1].to_owned(), 1, "string"));
     };
@@ -31,7 +31,7 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
         })?;
 
         match c {
-            '%' => {
+            b'%' => {
                 let spec = read_char(&mut fmt).ok_or_else(|| {
                     engine.make_err(
                         "scanf/missing-format",
@@ -40,35 +40,42 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
                     )
                 })?;
                 match spec {
-                    'i' => {
+                    b'i' => {
                         let end = data
-                            .find(|c: char| !(('0'..='9').contains(&c) || c == '+' || c == '-'))
+                            .iter()
+                            .position(|&b: &u8| {
+                                !((b'0'..=b'9').contains(&b) || b == b'+' || b == b'-')
+                            })
                             .unwrap_or_else(|| data.len());
                         let (s, rest) = data.split_at(end);
                         data = rest;
 
-                        let num = s.parse::<i64>().map_err(|e| {
+                        let parsable = String::from_utf8_lossy(s);
+                        let num = parsable.parse::<i64>().map_err(|e| {
                             engine.make_err(
                                 "scanf/int-fail",
-                                format!("could not parse int {}: {}", s, e),
+                                format!("could not parse int {}: {}", parsable, e),
                                 Some(Engine::list_to_sexp(&[
                                     Gc::new(Expr::String(s.to_owned())),
-                                    Gc::new(Expr::String(e.to_string())),
+                                    Gc::new(Expr::String(e.to_string().into_bytes())),
                                 ])),
                             )
                         })?;
                         datums_read.push(Gc::new(Expr::Integer(num)));
                     }
-                    's' => {
-                        let end = data.find(char::is_whitespace).unwrap_or_else(|| data.len());
+                    b's' => {
+                        let end = data
+                            .iter()
+                            .position(|b| *b == b' ')
+                            .unwrap_or_else(|| data.len());
                         let (s, rest) = data.split_at(end);
                         data = rest;
 
                         datums_read.push(Gc::new(Expr::String(s.to_owned())));
                     }
-                    '[' => {
-                        let negate = fmt.starts_with('^');
-                        let set_end = fmt.find(']').ok_or_else(|| {
+                    b'[' => {
+                        let negate = fmt.starts_with(b"^");
+                        let set_end = fmt.iter().position(|b| *b == b']').ok_or_else(|| {
                             engine.make_err(
                                 "scanf/no-charset-end",
                                 "a charset \"%[chars]\" requires an ending bracket".to_string(),
@@ -77,18 +84,19 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
                         })?;
 
                         let (set, rest) = fmt.split_at(set_end);
-                        let set = set.chars().dedup().collect_vec();
+                        let set = set.iter().dedup().collect_vec();
                         fmt = &rest[1..]; // skip the one-byte '['
 
                         // We actually search for the first char that *doesn't* match
                         let ending_idx = data
-                            .find(|c: char| {
+                            .iter()
+                            .position(|b: &u8| {
                                 if negate {
                                     // search for something *in* the set to end it
-                                    set.contains(&c)
+                                    set.contains(&b)
                                 } else {
                                     // search for something *out* of the set to end it
-                                    !set.contains(&c)
+                                    !set.contains(&b)
                                 }
                             })
                             .unwrap_or_else(|| data.len());
@@ -98,19 +106,21 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
                     }
 
                     ono => {
+                        // ughh
                         return Err(engine.make_err(
                             "scanf/bad-specifier",
-                            format!("the format char {:?} is invalid", ono),
-                            Some(Gc::new(Expr::String(ono.to_string()))),
+                            format!("the format char {:?} is invalid", ono as char),
+                            Some(Gc::new(Expr::String(vec![ono]))),
                         ));
                     }
                 }
             }
-            c if c.is_whitespace() => {
+            b' ' => {
                 // Match any number of non-whitespace chars including zero
                 // if we never find a non-whitespace, read the whole string
                 let next_non_ws = data
-                    .find(|c: char| !c.is_whitespace())
+                    .iter()
+                    .position(|b| *b != b' ')
                     .unwrap_or_else(|| data.len());
                 let (_ws, rest) = data.split_at(next_non_ws);
                 data = rest;
@@ -132,8 +142,8 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
                             c, next_c
                         ),
                         Some(Engine::list_to_sexp(&[
-                            Gc::new(Expr::String(c.to_string())),
-                            Gc::new(Expr::String(next_c.to_string())),
+                            Gc::new(Expr::String(c.to_string().into_bytes())),
+                            Gc::new(Expr::String(next_c.to_string().into_bytes())),
                         ])),
                     ));
                 } // else data has already been advanced yahoo
@@ -144,11 +154,10 @@ pub fn scanf(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
     Ok(Engine::list_to_sexp(&datums_read))
 }
 
-fn read_char(s: &mut &str) -> Option<char> {
-    let c = s.chars().next();
-    c.map(|c| {
-        *s = &s[c.len_utf8()..];
-        c
+fn read_char(s: &mut &[u8]) -> Option<u8> {
+    s.first().map(|c| {
+        *s = &s[1..];
+        *c
     })
 }
 
@@ -160,7 +169,11 @@ pub fn read(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) ->
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
     };
 
-    let res = match crate::parse::read_many(s, "<read>".to_owned(), engine) {
+    let res = match crate::parse::read_many(
+        String::from_utf8_lossy(s).as_ref(),
+        "<read>".to_owned(),
+        engine,
+    ) {
         Ok(it) => it.into_iter().map(Gc::new).collect_vec(),
         Err(ono) => return Err(engine.make_err("read/syntax", ono.to_string(), None)),
     };
@@ -171,5 +184,5 @@ pub fn write(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
     check_argc(engine, args, 1, 1)?;
     engine
         .write_expr(args[0].to_owned())
-        .map(|s| Gc::new(Expr::String(s)))
+        .map(|s| Gc::new(Expr::String(s.into_bytes())))
 }

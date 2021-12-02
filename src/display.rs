@@ -56,7 +56,7 @@ impl Engine {
                     write!(w, "()")
                 }
                 Expr::String(s) => {
-                    write!(w, "{:?}", s)
+                    write!(w, "{:?}", String::from_utf8_lossy(s))
                 }
                 Expr::SpecialForm { name, .. } => {
                     if let Some(name) = engine.get_symbol_str(*name) {
@@ -122,15 +122,16 @@ impl Engine {
                     write!(w, ")")
                 }
                 Expr::Map(m) => {
-                    write!(w, "(make-map")?;
-                    for (k, v) in m.iter() {
-                        let expr = engine.from_hashable(k);
-                        write!(w, " ")?;
-                        recur(engine, w, expr)?;
+                    write!(w, "#{{")?;
+                    for (idx, (k, v)) in m.iter().enumerate() {
+                        recur(engine, w, k.to_owned())?;
                         write!(w, " ")?;
                         recur(engine, w, v.to_owned())?;
+                        if idx != m.len() - 1 {
+                            write!(w, " ")?;
+                        }
                     }
-                    write!(w, ")")
+                    write!(w, "}}")
                 }
             }
         }
@@ -152,7 +153,7 @@ impl Engine {
                 Expr::Integer(i) => write!(w, "{}", i),
                 Expr::Float(f) => write!(w, "{}", f),
                 Expr::String(s) => {
-                    write!(w, "{}", s)
+                    write!(w, "{}", String::from_utf8_lossy(s))
                 }
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {
@@ -212,15 +213,16 @@ impl Engine {
                     write!(w, "<procedure>")
                 }
                 Expr::Map(m) => {
-                    write!(w, "(make-map")?;
-                    for (k, v) in m.iter() {
-                        let expr = engine.from_hashable(k);
-                        write!(w, " ")?;
-                        recur(engine, w, expr)?;
+                    write!(w, "#{{")?;
+                    for (idx, (k, v)) in m.iter().enumerate() {
+                        recur(engine, w, k.to_owned())?;
                         write!(w, " ")?;
                         recur(engine, w, v.to_owned())?;
+                        if idx != m.len() - 1 {
+                            write!(w, " ")?;
+                        }
                     }
-                    write!(w, ")")
+                    write!(w, "}}")
                 }
             }
         }

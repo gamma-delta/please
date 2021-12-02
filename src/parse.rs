@@ -147,7 +147,7 @@ impl ExprParseError {
                     .with_label(Label::new(all).with_message("but none was found here"))
                     .with_note("try putting a \"*;\" at the end");
             }
-            ExprParseErrorInfo::QuoteNothing => {
+            ExprParseErrorInfo::PrefixNothing => {
                 report = report.with_label(Label::new(all).with_message("you can't quote that"))
             }
             ExprParseErrorInfo::Eof => {
@@ -219,8 +219,8 @@ pub enum ExprParseErrorInfo {
     InvalidRemainder,
     #[error("expected a closing \"*;\" to this block comment")]
     ExpectedCloseBlockComment,
-    #[error("found nothing after a quote")]
-    QuoteNothing,
+    #[error("found nothing after a special prefix")]
+    PrefixNothing,
     #[error("expected a datum but found nothing")]
     Eof,
 }
@@ -355,15 +355,22 @@ fn try_read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Optio
         return try_read_expr(rest, state);
     }
 
-    if let Some(quote) = try_read_quote_family(s, state) {
-        let ((quotefunc, quoted), rest) = quote?;
+    if let Some(quote) = try_read_prefix_family(s, state) {
+        let ((quotefunc, quoted, outside), rest) = quote?;
 
         let quote = state.intern_symbol(quotefunc);
         let quote_idx = Gc::new(Expr::Symbol(quote));
         let quoted_idx = Gc::new(quoted);
-        let null_idx = Gc::new(Expr::Nil);
-        let quoted_pair = Gc::new(Expr::Pair(quoted_idx, null_idx));
-        Ok((Some(Expr::Pair(quote_idx, quoted_pair)), rest))
+        let altogether = if outside {
+            // (quote . (expr . nil))
+            let null_idx = Gc::new(Expr::Nil);
+            let quoted_pair = Gc::new(Expr::Pair(quoted_idx, null_idx));
+            Expr::Pair(quote_idx, quoted_pair)
+        } else {
+            // (quote . expr)
+            Expr::Pair(quote_idx, quoted_idx)
+        };
+        Ok((Some(altogether), rest))
     } else if let Some(int) = try_read_int(s, state) {
         let (int, rest) = int?;
         Ok((Some(Expr::Integer(int)), rest))
@@ -372,7 +379,7 @@ fn try_read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Optio
         Ok((Some(Expr::Float(float)), rest))
     } else if let Some(string) = try_read_string(s, state) {
         let (string, rest) = string?;
-        Ok((Some(Expr::String(string)), rest))
+        Ok((Some(Expr::String(string.into_bytes())), rest))
     } else if let Some(ur_mom) = try_read_sexpr(s, state) {
         let (sexhaha, rest) = ur_mom?;
         Ok((Some(sexhaha), rest))
@@ -710,18 +717,21 @@ fn escape(s: &str) -> Result<(String, &str), InvalidEscape> {
     }
 }
 
-fn try_read_quote_family<'a>(
+/// For prefixes that insert their own sexprs, like the quote family and #.
+///
+/// `true` means the substitution goes on the outside, `false` means on the inside.
+fn try_read_prefix_family<'a>(
     whole: &'a str,
     state: &mut Engine,
-) -> Option<ReadResult<'a, (&'static str, Expr)>> {
+) -> Option<ReadResult<'a, (&'static str, Expr, bool)>> {
     let whole = whole.trim_start();
-    quote_shortcuts(whole).map(|(quote, rest)| {
+    special_prefixes(whole).map(|(quote, rest, outside)| {
         try_read_expr(rest, state).and_then(|(expr, rest)| {
             if let Some(expr) = expr {
-                Ok(((quote, expr), rest))
+                Ok(((quote, expr, outside), rest))
             } else {
                 Err(ExprParseErrorLimited {
-                    data: ExprParseErrorInfo::QuoteNothing,
+                    data: ExprParseErrorInfo::PrefixNothing,
                     // include quote
                     offender: whole,
                 })
@@ -730,16 +740,20 @@ fn try_read_quote_family<'a>(
     })
 }
 
-fn quote_shortcuts<'a>(s: &'a str) -> Option<(&'static str, &'a str)> {
+/// The boolean indicates whether it is `true: (sub (body))` or `false: (sub body)`
+fn special_prefixes<'a>(s: &'a str) -> Option<(&'static str, &'a str, bool)> {
     [
-        ("'", "quote"),
-        ("`", "quasiquote"),
+        ("'", "quote", true),
+        ("`", "quasiquote", true),
         // put this first so it looks for it first
-        (",@", "unquote-splicing"),
-        (",", "unquote"),
+        (",@", "unquote-splicing", true),
+        (",", "unquote", true),
+        ("#", "map/new", false),
     ]
     .iter()
-    .find_map(|(header, quote)| s.strip_prefix(header).map(|rest| (*quote, rest)))
+    .find_map(|(header, quote, outside)| {
+        s.strip_prefix(header).map(|rest| (*quote, rest, *outside))
+    })
 }
 
 /// Find the byte positions of the child string's start and end in the parent string.

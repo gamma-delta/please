@@ -1,3 +1,2 @@
-(define (map/make . kvs)
-  ; take the car because the empty map will just return falses
-  (car (apply map/insert (map/new) kvs)))
+(define (map/keys map) (for car (map->list map)))
+(define (map/vals map) (for cdr (map->list map)))

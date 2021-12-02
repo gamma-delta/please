@@ -18,7 +18,7 @@ pub fn make_exception(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Val
 
     Err(Exception {
         id: exn_name,
-        info: msg,
+        info: String::from_utf8_lossy(&msg).into_owned(),
         data,
         call_trace: EvalSource { trace: Vec::new() },
     })

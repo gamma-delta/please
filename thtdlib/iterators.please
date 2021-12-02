@@ -49,7 +49,7 @@
 
 (define (repeat elt [max false])
   (if max
-    (if (>=0 max)
+    (if (>0 max)
       (lazy-cons elt (repeat elt (sub1 max)))
       ())
   (lazy-cons elt (repeat elt))))

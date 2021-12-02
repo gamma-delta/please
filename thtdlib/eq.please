@@ -9,4 +9,6 @@
 ; i am sick of typoing this
 (define equals? equal?)
 
-(define not-equal? (negate equal?))
+(define (not-equal? . args) ((negate equal?) . args))
+(define (equal-any? proto . checks) (any (\ (x) (equal? proto x)) checks))
+(define (equal-any-of? . checks) (\ (proto) (equal-any? proto . checks)))

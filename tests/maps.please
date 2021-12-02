@@ -1,0 +1,24 @@
+(define mymap (apply map/new (flat-map (\ (x) (list (string x) (++ x))) (range 100))))
+(assert-eq (apply + (map/vals mymap)) 5050)
+
+; These should all hash differently
+(define mymap (map/insert mymap lambda 'fn "lambda" 'string 'lambda 'symbol))
+(assert-eq (map/get mymap lambda) 'fn)
+(assert-eq (map/get mymap "lambda") 'string)
+(assert-eq (map/get mymap 'lambda) 'symbol)
+
+(assert-eq (map/len mymap) 103)
+
+; Native functions should map to the underlying thing
+(define mymap (map/insert mymap \ 'new-fn))
+(assert-eq (map/get mymap lambda) 'new-fn)
+
+; All functions with the same shape map to the same thing
+(define testfunc (lambda (x) x))
+(define alias testfunc)
+(define alias2 (lambda (x) x))
+(define mymap (map/insert mymap testfunc 'clobbered1))
+(define mymap (map/insert mymap alias 'clobbered2))
+(define mymap (map/insert mymap alias2 'remains))
+
+(assert-eq (map/get mymap testfunc alias alias2) '(remains remains remains))

@@ -12,8 +12,8 @@ pub fn read_file(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>
 
     // faux try block
     let res = (|| {
-        let path = std::env::current_dir()?.join(path_stub);
-        std::fs::read_to_string(path)
+        let path = std::env::current_dir()?.join(String::from_utf8_lossy(path_stub).as_ref());
+        std::fs::read(path)
     })();
     match res {
         Ok(s) => EvalResult::Ok(Gc::new(Expr::String(s))),
@@ -22,7 +22,7 @@ pub fn read_file(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>
             EvalResult::Err(engine.make_err(
                 "read-file/io-err",
                 format!("os-level error: {}", &msg),
-                Some(Gc::new(Expr::String(msg))),
+                Some(Gc::new(Expr::String(msg.into_bytes()))),
             ))
         }
     }
