@@ -17,7 +17,7 @@
       (let (
         [arm (car bodies)]
         [test (first arm)]
-        [predicate (if (list? test)
+        [predicate (if (list? (eval test))
           `(equal-any? ,x ,@test)
           `(equal? ,x ,test))])
         `(if ,predicate
