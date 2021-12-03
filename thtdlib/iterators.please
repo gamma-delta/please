@@ -11,9 +11,12 @@
     ; still have leftover list
     (apply fold fn
       (apply fn acc (for car lists))
-      (for cdr lists))
+      (map cdr lists))
     ; we're done, give the acc
     acc))
+
+(define (fold1 fn . lists)
+  (apply fold fn (apply fn (for car lists)) (map cdr lists)))
 
 (define (map fn . rows)
   (if (all (negate null?) rows)

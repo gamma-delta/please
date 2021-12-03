@@ -1,0 +1,28 @@
+(define (sort/idxes l [less-than? <])
+  (let (
+    [memo (list/memoize l)] 
+    [memo-less-than? (\ (idx jdx) (less-than? (map/get memo idx) (map/get memo jdx)))])
+    (let outerloop ([l (range (list/len l))])
+      (let ([len (list-len l)])
+        (if (< len 2)
+          l
+          (let (
+            [splitted (split-at l (/ len 2))]
+            [head (car splitted)]
+            [tail (cdr splitted)])
+            (let loop ([head (outerloop head)] [tail (outerloop tail)] [result '()])
+              (cond
+                [(null? head) (append (reverse result) tail)]
+                [(null? tail) (append (reverse result) head)]
+                [(memo-less-than? (car head) (car tail))
+                  (loop (cdr head) tail (cons (car head) result))]
+                (loop head (cdr tail) (cons (car tail) result))))))))))
+(define (sort l [less-than? <]) (index-many l (sort/idxes l less-than?)))
+
+(define (sort/idxes/by-key l keygen [less-than? <]) 
+  (sort/idxes l (\ (x y) (less-than? (keygen x) (keygen y)))))
+(define (sort/by-key l keygen [less-than? <])
+  (index-many l (sort/idxes/by-key l keygen less-than?)))
+
+; i'll forget otherwise
+(define sort/by-key/idxes sort/idxes/by-key)

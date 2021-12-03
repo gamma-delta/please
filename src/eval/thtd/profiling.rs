@@ -30,7 +30,7 @@ pub fn check_profiling(
     })
 }
 
-pub fn end_profiling(
+pub fn stop_profiling(
     engine: &mut Engine,
     _: Gc<GcCell<Namespace>>,
     args: &[Gc<Expr>],

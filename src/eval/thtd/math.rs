@@ -443,3 +443,25 @@ pub fn num_eq(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) 
     }
     Ok(engine.make_bool(all_eq))
 }
+
+pub fn num2rounded_str(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 2, 2)?;
+
+    let num = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    let precision = match &*args[1] {
+        Expr::Integer(i) => *i,
+        _ => return Err(bad_arg_type(engine, args[1].to_owned(), 1, "integer")),
+    };
+
+    let s = match num {
+        // precision is ignored on ints
+        Num::Int(i) => i.to_string(),
+        Num::Float(f) => format!("{:.*}", precision as usize, f),
+    };
+
+    Ok(Gc::new(Expr::String(s.into_bytes())))
+}

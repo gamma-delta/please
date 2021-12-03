@@ -84,7 +84,7 @@ pub fn let_(
     env: Gc<GcCell<Namespace>>,
     mut args: &[Gc<Expr>],
 ) -> Result<TailRec, Exception> {
-    let inner_env = Gc::new(GcCell::new(Namespace::new(env.clone())));
+    let inner_env = Gc::new(GcCell::new(Namespace::new(env)));
 
     let symbol = match args.get(0).map(|s| &**s) {
         Some(Expr::Symbol(s)) => {
@@ -140,7 +140,7 @@ pub fn let_(
             variadic: false,
             name: Some(s),
         });
-        inner_env.borrow_mut().insert(s, lambda.clone());
+        inner_env.borrow_mut().insert(s, lambda);
     }
 
     for body in &args[1..args.len() - 1] {

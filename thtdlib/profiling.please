@@ -1,0 +1,64 @@
+(define-macro (profiling/get-stats expr) 
+  `(let (
+    [_ (profiling/start)]
+    [res ,expr]
+    [stats (profiling/stop)])
+    (cons res stats)))
+
+; Return a list with entries (name avg-time count total-time),
+; sorted by the given key.
+;
+; If filter is a number, entries with a total-time less than the number will be omitted.
+; If it's a function, it will be called with each entry, and if it returns false, the entry will be omitted.
+; If it's nil, everything passes.
+(define (profiling/data/crunch stats [filter? always?] [sort-key ''avg-time])
+  (let (
+    [keygen (curryr list-nth (switch sort-key
+      ['avg-time 1]
+      ['count 2]
+      ['total-time 3]
+      (! 'profiling/data/crunch (curry string "unknown sort key '") sort-key)))]
+    [filter?' (which filter?
+      [nil? always?]
+      [callable? filter?]
+      [number? (\ (x) (<= filter? (fourth x)))]
+      (! 'profiling/data/crunch (curry string "bad filter type ") (typeof filter?)))]
+    [unsorted (for 
+      ; i have got to get destructuring working
+      (\ (entry) (let ([name (first entry)] [count (second entry)] [time (third entry)])
+        (list name (/ time count) count time))) 
+      (map->list stats))])
+    ; Invert the sort so longest comes first
+    (sort/by-key (filter filter?' unsorted) keygen >)))
+
+; Return (total-count total-time)
+(define (profiling/data/summarize stats)
+  (fold 
+    (\ (acc entry) 
+      (list (+ (first acc) (second entry)) (+ (second acc) (third entry))))
+    '(0 0)
+    (map->list stats)))
+
+; Pretty-print a profiling stats.
+(define (profiling/data/pprint stats [filter? always?] [sort-key ''avg-time])
+  (let (
+    [crunched (profiling/data/crunch stats filter? sort-key)]
+    [summary (profiling/data/summarize stats)])
+    (string 
+      (apply string (map
+        (\ (idx entry) (string 
+          "#" (++ idx) ": " 
+          (third entry) "x " (first entry) 
+          " (avg. " (number->rounded-string (* 1.0e6 (second entry)) 1) "us, "
+          "total " (number->rounded-string (* 1000 (fourth entry)) 1) "ms)\n"))
+        (range) crunched))
+        "---\nTotal time: " (number->rounded-string (second summary) 1) "s, "
+        "evaled " (first summary) " sexprs")))
+
+
+; Execute an expression, print some profiling stats to the console, and return the value.
+; By default only prints anything taking more than 100ms
+(define-macro (profiling/do expr [filter? 0.01] [sort-key ''avg-time])
+  `(let ([res-stats (profiling/get-stats ,expr)])
+    (prn (profiling/data/pprint (cdr res-stats) ,filter? ,sort-key))
+    (car res-stats)))

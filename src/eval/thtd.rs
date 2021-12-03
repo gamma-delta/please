@@ -101,6 +101,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("bitshift", bitwise_shift as _),
         ("bitrot", bitwise_rotate as _),
         ("bitcount", popcnt as _),
+        ("number->rounded-string", num2rounded_str as _),
         // functions
         ("open-procedure", open_fn as _),
         // string
@@ -155,7 +156,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         // profiling
         ("profiling/start", start_profiling as _),
         ("profiling/check", check_profiling as _),
-        ("profiling/stop", end_profiling as _),
+        ("profiling/stop", stop_profiling as _),
         // etc
         ("reload-thtdlib", reload_thtd as _),
         ("timeit", timeit as _),

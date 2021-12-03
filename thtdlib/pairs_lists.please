@@ -109,23 +109,6 @@
       acc
       (loop (sub1 n) (cons n acc)))))
 
-; thanks alwinfy for impling this in Racket (which I updated to please)
-(define (sort l [less-than? <])
-  (let ([len (list-len l)])
-    (if (< len 2)
-      l
-      (let (
-        [splitted (split-at l (/ len 2))]
-        [head (car splitted)]
-        [tail (cdr splitted)])
-        (let loop ([head (sort head less-than?)] [tail (sort tail less-than?)] [result '()])
-          (cond
-            [(null? head) (append (reverse result) tail)]
-            [(null? tail) (append (reverse result) head)]
-            [(less-than? (car head) (car tail))
-              (loop (cdr head) tail (cons (car head) result))]
-            (loop head (cdr tail) (cons (car tail) result))))))))
-
 (define (windows l n)
   (if (>= (list/len l) n)
     (lazy-cons (take l n) (windows (leave l 1) n))
@@ -136,3 +119,7 @@
     (if (all nil? l)
       out
       (loop (for cdr l) (extend out (for car l))))))
+
+; Convert a list into a map of indices to values
+; yes i should have native arrays for this bla bla bla
+(define (list/memoize l) (apply map/new (flatten (enumerate l))))

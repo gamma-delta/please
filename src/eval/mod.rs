@@ -64,7 +64,6 @@ impl Engine {
                 }
             }
             Expr::Pair(..) | Expr::LazyPair(..) => {
-                let now = self.profiler.as_ref().map(|_| Instant::now());
                 let (car, cdr) = self.split_cons(expr.clone())?;
                 let car = self.eval_inner(env.clone(), car)?;
 
@@ -78,15 +77,13 @@ impl Engine {
                         ))
                     }
                 };
-                let save_car = car.to_owned();
-                let (out, name) = match &*car {
-                    &Expr::SpecialForm { func, name } => (
-                        func(self, env, &args).map_err(|mut e| {
+                let out = match &*car {
+                    &Expr::SpecialForm { func, name } => func(self, env, &args)
+                        .map(|tr| (tr, None))
+                        .map_err(|mut e| {
                             e.call_trace.trace.push(Some(name));
                             e
                         }),
-                        name,
-                    ),
                     &Expr::NativeProcedure { func, name } => {
                         let trynt = || {
                             let evaled_args = args
@@ -94,19 +91,18 @@ impl Engine {
                                 .map(|expr| self.eval_inner(env.clone(), expr))
                                 .collect::<Result<Vec<_>, _>>()?;
 
-                            match func {
+                            let now = Instant::now();
+                            let out = match func {
                                 Ok(func) => func(self, env, &evaled_args).map(TailRec::Exit),
                                 Err(tailfunc) => tailfunc(self, env, &evaled_args),
-                            }
+                            };
+                            out.map(|tr| (tr, Some((now.elapsed(), name))))
                         };
                         let result = trynt();
-                        (
-                            result.map_err(|mut e| {
-                                e.call_trace.trace.push(Some(name));
-                                e
-                            }),
-                            name,
-                        )
+                        result.map_err(|mut e| {
+                            e.call_trace.trace.push(Some(name));
+                            e
+                        })
                     }
                     Expr::Procedure {
                         args: arg_names,
@@ -199,6 +195,7 @@ impl Engine {
                                     ));
                                 }
                             };
+                            let now = Instant::now();
                             for expr in body {
                                 self.eval_inner(body_env.clone(), expr.clone())?;
                             }
@@ -208,44 +205,44 @@ impl Engine {
                                 self.eval_inner(arg_env.clone(), tail.clone())?
                             };
                             let last_env = if closed_env.is_some() { arg_env } else { env };
-                            Ok(TailRec::TailRecur(last, last_env))
+                            Ok((
+                                TailRec::TailRecur(last, last_env),
+                                Some((
+                                    now.elapsed(),
+                                    name.unwrap_or_else(|| self.intern_symbol("<anonymous>")),
+                                )),
+                            ))
                         };
                         let res = trynt();
-                        (
-                            res.map_err(|mut e| {
-                                e.call_trace.trace.push(*name);
-                                e
-                            }),
-                            name.unwrap_or_else(|| self.intern_symbol("<anonymous>")),
-                        )
+                        res.map_err(|mut e| {
+                            e.call_trace.trace.push(*name);
+                            e
+                        })
                     }
-                    _ => (
-                        Err(self.make_err(
-                            "application/not-callable",
-                            "application: not callable".to_string(),
-                            Some(car),
-                        )),
-                        self.intern_symbol("<error>"),
-                    ),
+                    _ => Err(self.make_err(
+                        "application/not-callable",
+                        "application: not callable".to_string(),
+                        Some(car),
+                    )),
                 };
 
-                // We have to check *both* cause profiling/stop will clear the profiler
-                if let (Some(then), Some(profiler)) = (now, self.profiler.as_mut()) {
-                    let now = Instant::now();
-                    let dt = now.duration_since(then).as_secs_f64();
-
-                    match profiler.get_mut(&name) {
-                        Some((count, total_time)) => {
-                            *count += 1;
-                            *total_time += dt;
-                        }
-                        None => {
-                            profiler.insert(name, (1, dt));
+                out.map(|(tr, profiling_info)| {
+                    if let (Some(profiler), Some((dt, name))) =
+                        (self.profiler.as_mut(), profiling_info)
+                    {
+                        let dt = dt.as_secs_f64();
+                        match profiler.get_mut(&name) {
+                            Some((count, total_time)) => {
+                                *count += 1;
+                                *total_time += dt;
+                            }
+                            None => {
+                                profiler.insert(name, (1, dt));
+                            }
                         }
                     }
-                }
-
-                out
+                    tr
+                })
             }
         }
     }
