@@ -40,7 +40,7 @@
 (define (tenth l)   (list-nth l 9))
 
 (define (list-empty? l) (=0 (list-len l))) ; this is just `null?` w/e
-(define list-!empty? (~ list-empty?)) 
+(define list-!empty? (negate list-empty?)) 
 
 ; Return the first `n` elements of `l`
 (define (take l n) 
@@ -130,3 +130,9 @@
   (if (>= (list/len l) n)
     (lazy-cons (take l n) (windows (leave l 1) n))
     ()))
+
+(define (transpose l)
+  (let loop ([l l] [out ()])
+    (if (all nil? l)
+      out
+      (loop (for cdr l) (extend out (for car l))))))

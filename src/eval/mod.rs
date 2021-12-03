@@ -57,8 +57,8 @@ impl Engine {
                 match idx {
                     Some(it) => Ok(TailRec::Exit(it)),
                     None => Err(self.make_err(
-                        "application/undefined",
-                        format!("application: '{} is undefined", msg),
+                        "undefined",
+                        format!("'{} is undefined", msg),
                         Some(expr),
                     )),
                 }
@@ -78,6 +78,7 @@ impl Engine {
                         ))
                     }
                 };
+                let save_car = car.to_owned();
                 let (out, name) = match &*car {
                     &Expr::SpecialForm { func, name } => (
                         func(self, env, &args).map_err(|mut e| {

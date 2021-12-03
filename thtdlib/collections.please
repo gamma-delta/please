@@ -1,2 +1,10 @@
 (define (map/keys map) (for car (map->list map)))
 (define (map/vals map) (for cdr (map->list map)))
+
+(define (index1 l x) 
+  (which l
+    [pair? (list/nth l x)]
+    [map? (map/get l x)]
+    (! 'index1/bad-type 
+      (\ (x) (string "cannot index " (car x) " with " (second x))) 
+      (list (typeof l) x))))

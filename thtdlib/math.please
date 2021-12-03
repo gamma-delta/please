@@ -7,15 +7,12 @@
 (define (negative? x) (< x 0))
 (define (zero? x)     (= x 0))
 
-(define (!=) (~ =))
-
-(define (~ x)
-  (if (callable? x)
-    (negate x)
-    (not x)))
+(define != (negate =))
 
 (define (divisible-by x divisor)
   (=0 (% x divisor)))
+
+(define (bool->number x) (if x 1 0))
 
 (define (derivative respect-to expr)
   (clean-math-expr (let loop ([expr expr])

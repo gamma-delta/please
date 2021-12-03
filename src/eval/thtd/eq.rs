@@ -6,17 +6,15 @@ use super::*;
 pub fn id_equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     check_min_argc(engine, args, 1)?;
     let (lhs, rest) = args.split_first().unwrap();
-    let mut all_eq = true;
     for rhs in rest {
-        all_eq = Gc::ptr_eq(lhs, rhs);
-        if !all_eq {
-            break;
+        if !Gc::ptr_eq(lhs, rhs) {
+            return Ok(engine.make_bool(false));
         }
     }
-    Ok(engine.make_bool(all_eq))
+    Ok(engine.make_bool(true))
 }
 
-/// return whether two things are equal w/o type juggling
+/// return whether things are equal w/o type juggling
 pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     check_min_argc(engine, args, 1)?;
     let (lhs, rest) = args.split_first().unwrap();
@@ -28,6 +26,25 @@ pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
         }
     }
     Ok(engine.make_bool(true))
+}
+
+pub fn typeof_(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let sym = match &*args[0] {
+        Expr::Integer(_) => "integer",
+        Expr::Float(_) => "float",
+        Expr::String(_) => "string",
+        Expr::Symbol(_) => "symbol",
+        Expr::Pair(_, _) => "pair",
+        Expr::LazyPair(_, _, _) => "lazy-pair",
+        Expr::Nil => "nil",
+        Expr::SpecialForm { .. } => "special-form",
+        Expr::NativeProcedure { .. } => "native-procedure",
+        Expr::Procedure { .. } => "procedure",
+        Expr::Map(_) => "map",
+    };
+    Ok(Gc::new(Expr::Symbol(engine.intern_symbol(sym))))
 }
 
 macro_rules! predicates {

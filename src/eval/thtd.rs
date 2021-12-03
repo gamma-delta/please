@@ -140,6 +140,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("callable?", is_callable as _),
         ("procedure?", is_procedure as _),
         ("macro?", is_macro as _),
+        ("typeof", typeof_ as _),
         // collections
         ("map/new", new_map as _),
         ("map/insert", map_insert as _),

@@ -7,7 +7,7 @@
     ()))
 
 (define (fold fn acc . lists)
-  (if (all (~ null?) lists)
+  (if (all (negate null?) lists)
     ; still have leftover list
     (apply fold fn
       (apply fn acc (for car lists))
@@ -16,7 +16,7 @@
     acc))
 
 (define (map fn . rows)
-  (if (all (~ null?) rows)
+  (if (all (negate null?) rows)
     (lazy-cons (apply fn (for car rows)) (apply map fn (for cdr rows)))
     ()))
 
@@ -29,7 +29,7 @@
       (filter fn (cdr list)))))
 
 (define (filter-map fn . rows)
-  (if (all (~ null?) rows)
+  (if (all (negate null?) rows)
     (let (
       [res (apply fn (for car rows))]
       [rest (thunk (apply filter-map fn (for cdr rows)))])
@@ -61,6 +61,9 @@
     l))
 
 (define (find-map fn . rows)
-  (if (all (~ null?) rows)
+  (if (all (negate null?) rows)
     (or (apply fn (for car rows)) (apply find-map fn (for cdr rows)))
     false))
+
+(define (zip l1 l2) (map list l1 l2))
+(define (enumerate l) (zip (range) l))

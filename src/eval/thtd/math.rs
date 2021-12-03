@@ -21,12 +21,12 @@ impl Num {
     }
 
     fn from_expr(engine: &mut Engine, expr: Gc<Expr>, idx: usize) -> Result<Num, Exception> {
-        Ok(if let Expr::Integer(int) = &*expr {
-            Num::Int(*int)
-        } else if let Expr::Float(float) = &*expr {
-            Num::Float(*float)
-        } else {
-            return Err(bad_arg_type(engine, expr.clone(), idx, "number"));
+        Ok(match &*expr {
+            Expr::Integer(int) => Num::Int(*int),
+            Expr::Float(float) => Num::Float(*float),
+            Expr::Symbol(sym) if *sym == engine.intern_symbol("true") => Num::Int(1),
+            _ if !engine.is_truthy(expr.to_owned()) => Num::Int(0),
+            _ => return Err(bad_arg_type(engine, expr.clone(), idx, "number or bool")),
         })
     }
 

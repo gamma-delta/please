@@ -1,0 +1,15 @@
+; Things I Stole From APL
+
+(define (compress mask x)
+  (flat-map (curryr repeat 1) x))
+
+(define (index l idx)
+  (let ([idx (if (and (list? idx) (= 1 (list/len idx))) (car idx) idx)])
+    (if (list? idx)
+      (index (index l (car idx)) (cdr idx))
+      (index1 l idx))))
+
+(define (index-many l idxes)
+  (if (list? idxes) 
+    (for (curry index-many l) idxes)
+    (index l idxes)))

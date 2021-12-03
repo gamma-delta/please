@@ -14,7 +14,7 @@ impl Engine {
         ) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
-                Expr::Float(f) => write!(w, "{}", f),
+                Expr::Float(f) => write!(w, "{:?}", f),
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {
                         write!(w, "{}", s)
@@ -151,7 +151,7 @@ impl Engine {
         ) -> Result<(), fmt::Error> {
             match &*expr {
                 Expr::Integer(i) => write!(w, "{}", i),
-                Expr::Float(f) => write!(w, "{}", f),
+                Expr::Float(f) => write!(w, "{:?}", f),
                 Expr::String(s) => {
                     write!(w, "{}", String::from_utf8_lossy(s))
                 }
