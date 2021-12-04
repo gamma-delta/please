@@ -1,4 +1,4 @@
-(define-macro (-> expr . more)
+(define-macro -> (expr . more)
   (if more
     (let (
       [body (car more)]
@@ -14,9 +14,9 @@
       `(-> ,threaded . ,(cdr more)))
     expr))
 
-(define-macro (lambda-> expr . more) `(\ (x) (-> x ,expr . ,more)))
+(define-macro lambda-> (expr . more) `(\ (x) (-> x ,expr . ,more)))
 
-(define-macro (->> expr . more)
+(define-macro ->> (expr . more)
   (if more
     (let (
       [body (car more)]
@@ -33,6 +33,6 @@
     expr))
 
 
-(define-macro (lambda->> expr . more) `(\ (x) (->> x ,expr . ,more)))
+(define-macro lambda->> (expr . more) `(\ (x) (->> x ,expr . ,more)))
 
-(defun (discard . _) ())
+(defun discard (. _) ())

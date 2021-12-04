@@ -1,12 +1,12 @@
 ; Iteration and higher-order functions.
 
 ; alwinfy, for should not be lazy ...
-(defun (for fn list)
+(defun for (fn list)
   (if list
     (cons (fn (car list)) (for fn (cdr list)))
     ()))
 
-(defun (fold fn acc . lists)
+(defun fold (fn acc . lists)
   (if (all (negate null?) lists)
     ; still have leftover list
     (apply fold fn
@@ -15,15 +15,15 @@
     ; we're done, give the acc
     acc))
 
-(defun (fold1 fn . lists)
+(defun fold1 (fn . lists)
   (apply fold fn (apply fn (for car lists)) (map cdr lists)))
 
-(defun (map fn . rows)
+(defun map (fn . rows)
   (if (all (negate null?) rows)
     (lazy-cons (apply fn (for car rows)) (apply map fn (for cdr rows)))
     ()))
 
-(defun (filter fn list)
+(defun filter (fn list)
   (and list
     (if (fn (car list))
       ; it passes, put the original on and cons on the rest
@@ -31,7 +31,7 @@
       ; ignore and just pass the rest
       (filter fn (cdr list)))))
 
-(defun (filter-map fn . rows)
+(defun filter-map (fn . rows)
   (if (all (negate null?) rows)
     (let (
       [res (apply fn (for car rows))]
@@ -41,16 +41,16 @@
         (rest)))
     ()))
 
-(defun (flat-map f l)
+(defun flat-map (f l)
   (apply append (for f l)))
 
-(defun (mult1 l r)
+(defun mult1 (l r)
   (flat-map (\ (l) (for (\ (r) (cons r l)) r)) l))
 
-(defun (mult lists)
+(defun mult (lists)
   (fold mult1 '(()) lists))
 
-(defun (repeat elt [max false])
+(defun repeat (elt [max false])
   (if max
     (if (>0 max)
       (lazy-cons elt (repeat elt (sub1 max)))
@@ -58,15 +58,15 @@
   (lazy-cons elt (repeat elt))))
 
 ; Force-eval the first n elements of the lazy list
-(defun (reify n l)
+(defun reify (n l)
   (if (>=0 n)
     (cons (car l) (reify (sub1 n) (cdr l)))
     l))
 
-(defun (find-map fn . rows)
+(defun find-map (fn . rows)
   (if (all (negate null?) rows)
     (or (apply fn (for car rows)) (apply find-map fn (for cdr rows)))
     false))
 
-(defun (zip l1 l2) (map list l1 l2))
-(defun (enumerate l) (zip (range) l))
+(defun zip (l1 l2) (map list l1 l2))
+(defun enumerate (l) (zip (range) l))

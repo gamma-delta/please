@@ -229,43 +229,41 @@ impl Engine {
         closed_env: Option<Gc<GcCell<Namespace>>>,
         _name: Option<Symbol>,
     ) -> Result<(TailRec, Duration), Exception> {
-        (|| {
-            let args_passed = Engine::list_to_sexp(&args_passed);
-            let assigned_args = self.destructure_assign(arg_spec, args_passed)?;
+        let args_passed = Engine::list_to_sexp(&args_passed);
+        let assigned_args = self.destructure_assign(arg_spec, args_passed)?;
 
-            // disposable environment filled with arguments
-            let arg_env = Gc::new(GcCell::new(match &closed_env {
-                // lambdas are called closing over their environment
-                Some(closed) => Namespace::new_with(closed.to_owned(), assigned_args),
-                // macros are just executed in the parent context
-                None => Namespace::new_with(env.to_owned(), assigned_args),
-            }));
+        // disposable environment filled with arguments
+        let arg_env = Gc::new(GcCell::new(match &closed_env {
+            // lambdas are called closing over their environment
+            Some(closed) => Namespace::new_with(closed.to_owned(), assigned_args),
+            // macros are just executed in the parent context
+            None => Namespace::new_with(env.to_owned(), assigned_args),
+        }));
 
-            let (body, tail) = match &body[..] {
-                [body @ .., tail] => (body, tail),
-                [] => {
-                    return Err(self.make_err(
-                        "application/no-body",
-                        "application: had a procedure with no body sexprs".to_string(),
-                        None,
-                    ));
-                }
-            };
-
-            let now = Instant::now();
-            for expr in body {
-                self.eval_inner(arg_env.clone(), expr.clone())?;
+        let (body, tail) = match &body[..] {
+            [body @ .., tail] => (body, tail),
+            [] => {
+                return Err(self.make_err(
+                    "application/no-body",
+                    "application: had a procedure with no body sexprs".to_string(),
+                    None,
+                ));
             }
-            let tr = if closed_env.is_some() {
-                // Tail recurse on the tail
-                TailRec::TailRecur(tail.to_owned(), arg_env)
-            } else {
-                // Macros are double-evaluated, and the second time is *in the parent context*
-                // this way things like define work
-                let evaled_once = self.eval_inner(arg_env, tail.to_owned())?;
-                TailRec::TailRecur(evaled_once, env)
-            };
-            Ok((tr, now.elapsed()))
-        })()
+        };
+
+        let now = Instant::now();
+        for expr in body {
+            self.eval_inner(arg_env.clone(), expr.clone())?;
+        }
+        let tr = if closed_env.is_some() {
+            // Tail recurse on the tail
+            TailRec::TailRecur(tail.to_owned(), arg_env)
+        } else {
+            // Macros are double-evaluated, and the second time is *in the parent context*
+            // this way things like define work
+            let evaled_once = self.eval_inner(arg_env, tail.to_owned())?;
+            TailRec::TailRecur(evaled_once, env)
+        };
+        Ok((tr, now.elapsed()))
     }
 }

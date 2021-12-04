@@ -2,7 +2,7 @@
 ; the `z_` name is because files are evaled in alphabetical order...
 ; this is garbage garbage code but it works. fite me.
 
-(defun (car-family len)
+(defun car-family (len)
   (let (
     [ads (mult (map (const '(true false)) (range len)))])
     (map 
@@ -15,21 +15,21 @@
           [code (fold 
             (lambda (a n) (list (if n 'car 'cdr) a))
             'x ad)])
-          `(defun (,(string->symbol name) x) ,code)))
+          `(defun ,(string->symbol (name) x) ,code)))
       ads)))
-(define-macro (make-car-family max) 
+(define-macro make-car-family (max) 
   (if (>= max 2)
     `(do (unquote-splicing (car-family max)) (make-car-family ,(sub1 max)))
     ()))
 (make-car-family 5)
 
-(defun (cmpnum-family n)
+(defun cmpnum-family (n)
   (map 
     (\ (op) 
       (let ([name (string->symbol (string op n))])
-        `(defun (,name x) (,op x ,n))))
+        `(defun ,name (x) (,op x ,n))))
     (list '< '<= '= '>= '> '!=)))
-(define-macro (make-cmpnum-family n) 
+(define-macro make-cmpnum-family (n) 
   (if (>= n 0)
     `(do
       ,@(cmpnum-family n)

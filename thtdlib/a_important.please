@@ -1,16 +1,14 @@
 ; All the stuff that REALLY HAS TO BE done before everything else.
 
-(define defun (macro ((name . args) . bodies)
-  `(define name (lambda ,args ,@bodies))))
+(define defun (macro (name args body . bodies)
+  `(define ,name (lambda ,args ,body ,@bodies))))
 
-(define define-macro (macro ((name . args) . bodies)
-    `(define name (macro ,args ,@bodies))))
-(define defmacro define-macro)
+(define define-macro (macro (name args body . bodies)
+  `(define ,name (macro ,args ,body ,@bodies))))
 
-(define-macro (let assignment body . bodies)
-  (if (symbol? assignment)
-    ; loop form: assignment -> label, body -> assignment
-    `(do
-      (define ,assignment (lambda ,(for first body) ,@bodies))
-      (,assignment ,@(for second body)))
-    `((lambda ,(for first assignment) ,body ,@bodies) ,@(for second assignment))))
+(defun test ([default x 'boring]) (prn x))
+
+(test "hi")
+(test)
+
+(exit)

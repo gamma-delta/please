@@ -1,7 +1,7 @@
-(defun (map/keys map) (for car (map->list map)))
-(defun (map/vals map) (for cdr (map->list map)))
+(defun map/keys (map) (for car (map->list map)))
+(defun map/vals (map) (for cdr (map->list map)))
 
-(defun (index1 l x) 
+(defun index1 (l x) 
   (which l
     [pair? (list/nth l x)]
     [map? (map/get l x)]

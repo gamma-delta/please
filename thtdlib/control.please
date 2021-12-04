@@ -1,4 +1,4 @@
-(define-macro (cond . bodies)
+(define-macro cond (. bodies)
   (if bodies
     (if (= 1 (list-len bodies))
       (car bodies) ; This way we don't need a [true do-thing] at the end
@@ -10,7 +10,7 @@
 
 ; Like cond, but where [expr body] means [(equal? x expr) body]
 ; and [(exprs...) body] means [(equal-any? x . exprs) body]
-(define-macro (switch x . bodies)
+(define-macro switch (x . bodies)
   (if bodies
     (if (= 1 (list-len bodies))
       (car bodies)
@@ -27,7 +27,7 @@
 
 ; Like cond, but where [expr body] means [(expr x) body]
 ; and [(exprs...) body] means [((disjoin . exprs) x) body]
-(define-macro (which x . bodies)
+(define-macro which (x . bodies)
   (if bodies
     (if (= 1 (list-len bodies))
       (car bodies)

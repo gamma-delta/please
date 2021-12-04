@@ -1,4 +1,4 @@
-(defun (sort/idxes l [default less-than? <])
+(defun sort/idxes (l [default less-than? <])
   (let (
     [memo (list/memoize l)] 
     [memo-less-than? (\ (idx jdx) (less-than? (map/get memo idx) (map/get memo jdx)))])
@@ -17,11 +17,11 @@
                 [(memo-less-than? (car head) (car tail))
                   (loop (cdr head) tail (cons (car head) result))]
                 (loop head (cdr tail) (cons (car tail) result))))))))))
-(defun (sort l [default less-than? <]) (index-many l (sort/idxes l less-than?)))
+(defun sort (l [default less-than? <]) (index-many l (sort/idxes l less-than?)))
 
-(defun (sort/idxes/by-key l keygen [default less-than? <]) 
+(defun sort/idxes/by-key (l keygen [default less-than? <]) 
   (sort/idxes l (\ (x y) (less-than? (keygen x) (keygen y)))))
-(defun (sort/by-key l keygen [default less-than? <])
+(defun sort/by-key (l keygen [default less-than? <])
   (index-many l (sort/idxes/by-key l keygen less-than?)))
 
 ; i'll forget otherwise

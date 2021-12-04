@@ -1,5 +1,5 @@
-(defun (list? l) (or (nil? l) (and (pair? l) (list? (cdr l)))))
-(defun (exception? x)
+(defun list? (l) (or (nil? l) (and (pair? l) (list? (cdr l)))))
+(defun exception? (x)
   (and
     (list? x)
     (equal? '! (first x))))
@@ -9,6 +9,6 @@
 ; i am sick of typoing this
 (define equals? equal?)
 
-(defun (not-equal? . args) ((negate equal?) . args))
-(defun (equal-any? proto . checks) (any (\ (x) (equal? proto x)) checks))
-(defun (equal-any-of? . checks) (\ (proto) (equal-any? proto . checks)))
+(defun not-equal? (. args) ((negate equal?) . args))
+(defun equal-any? (proto . checks) (any (\ (x) (equal? proto x)) checks))
+(defun equal-any-of? (. checks) (\ (proto) (equal-any? proto . checks)))

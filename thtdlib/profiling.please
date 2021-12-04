@@ -1,4 +1,4 @@
-(define-macro (profiling/get-stats expr) 
+(define-macro profiling/get-stats (expr) 
   `(let (
     [_ (profiling/start)]
     [res ,expr]
@@ -11,7 +11,7 @@
 ; If filter is a number, entries with a total-time less than the number will be omitted.
 ; If it's a function, it will be called with each entry, and if it returns false, the entry will be omitted.
 ; If it's nil, everything passes.
-(defun (profiling/data/crunch stats [default filter? always?] [default sort-key ''avg-time])
+(defun profiling/data/crunch (stats [default filter? always?] [default sort-key ''avg-time])
   (let (
     [keygen (curryr list-nth (switch sort-key
       ['avg-time 1]
@@ -32,7 +32,7 @@
     (sort/by-key (filter filter?' unsorted) keygen >)))
 
 ; Return (total-count total-time)
-(defun (profiling/data/summarize stats)
+(defun profiling/data/summarize (stats)
   (fold 
     (\ (acc entry) 
       (list (+ (first acc) (second entry)) (+ (second acc) (third entry))))
@@ -40,7 +40,7 @@
     (map->list stats)))
 
 ; Pretty-print a profiling stats.
-(defun (profiling/data/pprint stats [default filter? always?] [default sort-key ''avg-time])
+(defun profiling/data/pprint (stats [default filter? always?] [default sort-key ''avg-time])
   (let (
     [crunched (profiling/data/crunch stats filter? sort-key)]
     [summary (profiling/data/summarize stats)])
@@ -58,7 +58,7 @@
 
 ; Execute an expression, print some profiling stats to the console, and return the value.
 ; By default only prints anything taking more than 100ms
-(define-macro (profiling/do expr [default filter? 0.01] [default sort-key ''avg-time])
+(define-macro profiling/do (expr [default filter? 0.01] [default sort-key ''avg-time])
   `(let ([res-stats (profiling/get-stats ,expr)])
     (prn (profiling/data/pprint (cdr res-stats) ,filter? ,sort-key))
     (car res-stats)))
