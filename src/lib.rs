@@ -4,6 +4,7 @@ mod hash;
 mod lazy;
 mod parse;
 mod repl;
+mod type_predicates;
 
 use hash::GcMap;
 pub use parse::{ExprParseError, ExprParseErrorInfo};
@@ -59,11 +60,10 @@ pub enum Expr {
     },
 
     Procedure {
-        args: Vec<(Symbol, Option<Gc<Expr>>)>,
+        arg_spec: Gc<Expr>,
         body: Vec<Gc<Expr>>,
         /// This is None iff the body's a macro
         env: Option<Gc<GcCell<Namespace>>>,
-        variadic: bool,
         /// Possible name of the `define` that created this.
         name: Option<Symbol>,
     },
@@ -85,6 +85,30 @@ impl Expr {
         f: &mut std::fmt::Formatter,
     ) -> Result<(), std::fmt::Error> {
         write!(f, "fn(...)")
+    }
+
+    pub fn integer(i: i64) -> Gc<Self> {
+        Gc::new(Self::Integer(i))
+    }
+
+    pub fn float(f: f64) -> Gc<Self> {
+        Gc::new(Self::Float(f))
+    }
+
+    pub fn string(s: Vec<u8>) -> Gc<Self> {
+        Gc::new(Self::String(s))
+    }
+
+    pub fn symbol(s: Symbol) -> Gc<Self> {
+        Gc::new(Self::Symbol(s))
+    }
+
+    pub fn pair(car: Gc<Expr>, cdr: Gc<Expr>) -> Gc<Self> {
+        Gc::new(Self::Pair(car, cdr))
+    }
+
+    pub fn nil() -> Gc<Self> {
+        Gc::new(Self::Nil)
     }
 }
 
@@ -112,25 +136,18 @@ impl PartialEq for Expr {
             }
             (
                 Procedure {
-                    args: a_args,
+                    arg_spec: a_args,
                     body: a_body,
                     env: a_env,
-                    variadic: a_variadic,
                     ..
                 },
                 Procedure {
-                    args: b_args,
+                    arg_spec: b_args,
                     body: b_body,
                     env: b_env,
-                    variadic: b_variadic,
                     ..
                 },
-            ) => {
-                a_args == b_args
-                    && a_body == b_body
-                    && a_env.is_some() == b_env.is_some()
-                    && a_variadic == b_variadic
-            }
+            ) => a_args == b_args && a_body == b_body && a_env.is_some() == b_env.is_some(),
             (Map(a), Map(b)) => a == b,
 
             (LazyPair(..), LazyPair(..)) => std::ptr::eq(self, other),
@@ -165,16 +182,14 @@ impl Hash for Expr {
             SpecialForm { func, .. } => std::ptr::hash(func, state),
             NativeProcedure { func, .. } => std::ptr::hash(func, state),
             Procedure {
-                args,
+                arg_spec: args,
                 body,
                 env,
-                variadic,
                 ..
             } => {
                 args.hash(state);
                 body.hash(state);
                 env.is_some().hash(state);
-                variadic.hash(state);
             }
             Map(map) => map.hash(state),
         }
@@ -375,9 +390,15 @@ pub struct Namespace {
 }
 
 impl Namespace {
+    /// The `parent` is required because there should be exactly one namespace with no parents,
+    /// the root, and it should only be constructable inside the module.
     pub fn new(parent: Gc<GcCell<Namespace>>) -> Self {
+        Self::new_with(parent, HashMap::new())
+    }
+
+    pub fn new_with(parent: Gc<GcCell<Namespace>>, mappings: HashMap<Symbol, Gc<Expr>>) -> Self {
         Self {
-            mappings: HashMap::new(),
+            mappings,
             parent: Some(parent),
         }
     }
@@ -392,6 +413,10 @@ impl Namespace {
                 .as_ref()
                 .and_then(|parent| parent.borrow().lookup(symbol))
         })
+    }
+
+    pub fn merge_from(&mut self, others: HashMap<Symbol, Gc<Expr>>) {
+        self.mappings.extend(others);
     }
 }
 

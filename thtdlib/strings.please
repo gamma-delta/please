@@ -1,5 +1,5 @@
-(define (string/starts-with needle haystack)
+(defun (string/starts-with needle haystack)
   (let ([idx (string/find needle haystack)])
     (and idx (=0 idx))))
 
-(define (string/nth s n) (string/slice s n n))
+(defun (string/nth s n) (string/slice s n n))

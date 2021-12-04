@@ -73,46 +73,19 @@ impl Engine {
                     }
                 }
                 Expr::Procedure {
-                    args,
+                    arg_spec,
                     body,
-                    variadic,
                     env,
                     ..
                 } => {
                     write!(w, "(")?;
                     if env.is_some() {
-                        write!(w, "lambda (")?;
+                        write!(w, "lambda ")?;
                     } else {
-                        write!(w, "macro (")?;
+                        write!(w, "macro ")?;
                     }
 
-                    let (draw_now_args, special) = if *variadic && args.last().is_some() {
-                        (&args[..args.len() - 1], true)
-                    } else {
-                        (args.as_slice(), false)
-                    };
-
-                    for (idx, (sym, default)) in draw_now_args.iter().enumerate() {
-                        let symbol = engine.get_symbol_str(*sym).unwrap_or("<unknown>");
-                        if let Some(default) = default {
-                            write!(w, "[{} ", symbol)?;
-                            recur(engine, w, default.to_owned())?;
-                            write!(w, "]")?;
-                        } else {
-                            write!(w, "{}", symbol)?;
-                        }
-                        if idx != draw_now_args.len() - 1 {
-                            write!(w, " ")?;
-                        }
-                    }
-                    if special {
-                        // a little hacky but we can't have default trail args
-                        let last = engine
-                            .get_symbol_str(args.last().unwrap().0)
-                            .unwrap_or("<unknown>");
-                        write!(w, ". {}", last)?;
-                    }
-                    write!(w, ")")?;
+                    recur(engine, w, arg_spec.to_owned())?;
 
                     for body_expr in body {
                         write!(w, " ")?;

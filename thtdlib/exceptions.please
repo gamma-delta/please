@@ -1,4 +1,4 @@
-(define (! name msger [data ()])
+(defun (! name msger [data ()])
   (exception
     name
     (if (callable? msger) 
@@ -15,8 +15,8 @@
         `(do ,@bodies)))))
 
 (define-macro (assert body 
-  [name ''assert] ; why do we need double quotes? beats me! i think its because we eval the rhs of a default arg?
-  [message false])
+  [default name ''assert] ; why do we need double quotes? beats me! i think its because we eval the rhs of a default arg?
+  [default message false])
   `(let ([result ,body]) 
     (or result (! 
       ,name 
@@ -24,15 +24,15 @@
       result))))
 
 (define-macro (assert-eq lhs rhs 
-  [name ''assert]
-  [message false])
+  [default name ''assert]
+  [default message false])
     `(let ([lhs ,lhs] [rhs ,rhs] [result (equal? lhs rhs)])
       (or result (! 
         ,name 
         (or ,message (string "assertion failed: (equal? " lhs " "  rhs ") returned false")) 
         result))))
 
-(define (exn-name? sym [partial false])
+(defun (exn-name? sym [partial false])
   (if partial
     (\ (exn) (string-starts-with (symbol->string sym) (symbol->string (second exn))))
     (\ (exn) (equal? sym (second exn)))))

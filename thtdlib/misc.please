@@ -35,4 +35,4 @@
 
 (define-macro (lambda->> expr . more) `(\ (x) (->> x ,expr . ,more)))
 
-(define (discard . _) ())
+(defun (discard . _) ())

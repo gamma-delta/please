@@ -1,45 +1,45 @@
 ; Composing and mapping functions
 
-(define (compose fn . rest)
+(defun (compose fn . rest)
   (if rest
     (\ (x)
       ; execute fn on ((the rest of the composed functions) of x)
       (fn ((apply compose rest) x)))
     fn))
 
-(define (identity x) x) ; man that was hard
+(defun (identity x) x) ; man that was hard
 
-(define (const it) (\ _ it))
+(defun (const it) (\ _ it))
 
-(define (negate fn) (\ x (not (apply fn x))))
+(defun (negate fn) (\ x (not (apply fn x))))
 
-(define (conjoin . fs) 
+(defun (conjoin . fs) 
   (\ xs 
     (all (curryr apply xs) fs)))
 
-(define (disjoin . fs) 
+(defun (disjoin . fs) 
   (\ xs 
     (any (curryr apply xs) fs)))
 
-(define (juxt . fs)
+(defun (juxt . fs)
   (\ xs
     (for (curryr apply xs) fs)))
 
-(define (curry fn . args)
+(defun (curry fn . args)
   (lambda newargs
     (apply fn (append args newargs))))
 (define partial curry)
 
-(define (curryr fn . args)
+(defun (curryr fn . args)
   (lambda newargs
     (apply fn (append newargs args))))
 
-(define (all fn list) 
+(defun (all fn list) 
   (if list
     (and (fn (car list)) (all fn (cdr list)))
     true))
 
-(define (any fn list) 
+(defun (any fn list) 
   (if list
     (or (fn (car list)) (any fn (cdr list)))
     false))
@@ -51,10 +51,10 @@
 (define fn lambda)
 (define-macro (\@ . bodies) `(lambda (@) . ,bodies))
 
-(define (always? . _) true)
-(define (never? . _) false)
+(defun (always? . _) true)
+(defun (never? . _) false)
 
-(define (argc x) 
+(defun (argc x) 
   (let ([args (first (open-procedure x))])
     ; If the arguments are *not* a proper list it's a vararg function
     (if (list? args)

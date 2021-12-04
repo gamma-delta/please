@@ -48,11 +48,10 @@ pub fn typeof_(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
 }
 
 macro_rules! predicates {
-    (($name:ident $pat:pat)) => {
-        #[allow(unused_parens)]
+    ($name:ident) => {
         pub fn $name(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
             check_argc(engine, args, 1, 1)?;
-            Ok(engine.make_bool(matches!(&*args[0], $pat)))
+            Ok(engine.make_bool(args[0].$name()))
         }
     };
     ($head:tt $($tail:tt)+) => {
@@ -62,15 +61,15 @@ macro_rules! predicates {
 }
 
 predicates! {
-    (is_pair (Expr::Pair(..) | Expr::LazyPair(..)))
-    (is_number (Expr::Integer(_) | Expr::Float(_)))
-    (is_exact Expr::Integer(..))
-    (is_inexact Expr::Float(..))
-    (is_nil Expr::Nil)
-    (is_string Expr::String(_))
-    (is_symbol Expr::Symbol(_))
-    (is_map Expr::Map(_))
-    (is_callable (Expr::NativeProcedure { .. } | Expr::SpecialForm { .. } | Expr::Procedure { .. }))
-    (is_procedure (Expr::NativeProcedure { .. } | Expr::Procedure { env: Some(_), .. }))
-    (is_macro (Expr::SpecialForm { .. } | Expr::Procedure { env: None, .. }))
+    is_pair
+    is_number
+    is_exact
+    is_inexact
+    is_nil
+    is_string
+    is_symbol
+    is_map
+    is_callable
+    is_procedure
+    is_macro
 }
