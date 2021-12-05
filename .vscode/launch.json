@@ -7,78 +7,20 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'ruth'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=ruth"
-                ],
-                "filter": {
-                    "name": "ruth",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug executable 'ruth'",
+            "name": "Debug executable 'please'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=ruth",
-                    "--package=ruth"
+                    "--bin=please",
+                    "--package=please"
                 ],
                 "filter": {
-                    "name": "ruth",
+                    "name": "please",
                     "kind": "bin"
                 }
             },
             "args": [],
             "cwd": "${workspaceFolder}"
         },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug executable 'ruth' with file",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=ruth",
-                    "--package=ruth"
-                ],
-                "filter": {
-                    "name": "ruth",
-                    "kind": "bin"
-                }
-            },
-            "args": [
-                "aoc2020/23.ruth"
-            ],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in executable 'ruth'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=ruth",
-                    "--package=ruth"
-                ],
-                "filter": {
-                    "name": "ruth",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        }
     ]
 }

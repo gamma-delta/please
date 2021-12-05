@@ -1,4 +1,4 @@
-(defun list (. args) args)
+(defun list args args)
 
 (defun list-rev (l)
   (if (> (list-len l) 1)
@@ -15,7 +15,7 @@
     (lazy-cons (car l) (append1 (cdr l) x))
     x))
 
-(defun append (. lists)
+(defun append lists
   (if lists
     (append1 (car lists) (apply append (cdr lists)))
     '()))

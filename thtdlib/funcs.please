@@ -13,15 +13,15 @@
 
 (defun negate (fn) (\ x (not (apply fn x))))
 
-(defun conjoin (. fs) 
+(defun conjoin fs 
   (\ xs 
     (all (curryr apply xs) fs)))
 
-(defun disjoin (. fs) 
+(defun disjoin fs 
   (\ xs 
     (any (curryr apply xs) fs)))
 
-(defun juxt (. fs)
+(defun juxt fs
   (\ xs
     (for (curryr apply xs) fs)))
 
@@ -44,15 +44,15 @@
     (or (fn (car list)) (any fn (cdr list)))
     false))
 
-(define-macro thunk (. bodies) `(\ () . ,bodies)) ; require zero args
-(define-macro thunk* (. bodies) `(\ _ . ,bodies)) ; allow any args
+(define-macro thunk bodies `(\ () . ,bodies)) ; require zero args
+(define-macro thunk* bodies `(\ _ . ,bodies)) ; allow any args
 
 (define \ lambda)
 (define fn lambda)
 (define-macro \@ (. bodies) `(lambda (@) . ,bodies))
 
-(defun always? (. _) true)
-(defun never? (. _) false)
+(defun always? _ true)
+(defun never? _ false)
 
 (defun argc (x) 
   (let ([args (first (open-procedure x))])

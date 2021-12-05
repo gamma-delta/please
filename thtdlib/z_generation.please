@@ -15,11 +15,11 @@
           [code (fold 
             (lambda (a n) (list (if n 'car 'cdr) a))
             'x ad)])
-          `(defun ,(string->symbol (name) x) ,code)))
+          `(defun ,(string->symbol name) (x) ,code)))
       ads)))
 (define-macro make-car-family (max) 
   (if (>= max 2)
-    `(do (unquote-splicing (car-family max)) (make-car-family ,(sub1 max)))
+    `(do ,@(car-family max) (make-car-family ,(sub1 max)))
     ()))
 (make-car-family 5)
 

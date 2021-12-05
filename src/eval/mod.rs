@@ -229,16 +229,17 @@ impl Engine {
         closed_env: Option<Gc<GcCell<Namespace>>>,
         _name: Option<Symbol>,
     ) -> Result<(TailRec, Duration), Exception> {
-        let args_passed = Engine::list_to_sexp(&args_passed);
-        let assigned_args = self.destructure_assign(arg_spec, args_passed)?;
-
         // disposable environment filled with arguments
         let arg_env = Gc::new(GcCell::new(match &closed_env {
             // lambdas are called closing over their environment
-            Some(closed) => Namespace::new_with(closed.to_owned(), assigned_args),
+            Some(closed) => Namespace::new(closed.to_owned()),
             // macros are just executed in the parent context
-            None => Namespace::new_with(env.to_owned(), assigned_args),
+            None => Namespace::new(env.to_owned()),
         }));
+
+        let args_passed = Engine::list_to_sexp(&args_passed);
+        let assigned_args = self.destructure_assign(arg_env.to_owned(), arg_spec, args_passed)?;
+        arg_env.borrow_mut().merge_from(assigned_args);
 
         let (body, tail) = match &body[..] {
             [body @ .., tail] => (body, tail),

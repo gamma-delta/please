@@ -95,8 +95,8 @@ impl Expr {
         Gc::new(Self::Float(f))
     }
 
-    pub fn string(s: Vec<u8>) -> Gc<Self> {
-        Gc::new(Self::String(s))
+    pub fn string<S: Into<Vec<u8>>>(s: S) -> Gc<Self> {
+        Gc::new(Self::String(s.into()))
     }
 
     pub fn symbol(s: Symbol) -> Gc<Self> {

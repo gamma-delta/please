@@ -1,4 +1,4 @@
-(defun ! (name msger [data ()])
+(defun ! (name msger [default data ()])
   (exception
     name
     (if (callable? msger) 
@@ -32,7 +32,7 @@
         (or ,message (string "assertion failed: (equal? " lhs " "  rhs ") returned false")) 
         result))))
 
-(defun exn-name? (sym [partial false])
+(defun exn-name? (sym [default partial false])
   (if partial
     (\ (exn) (string-starts-with (symbol->string sym) (symbol->string (second exn))))
     (\ (exn) (equal? sym (second exn)))))

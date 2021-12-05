@@ -41,3 +41,11 @@
           ,(second arm)
           (which ,x . ,(cdr bodies)))))
       `(! 'which/fail "did not find a true condition" ,x)))
+
+(define-macro match (x . bodies)
+  (if bodies
+    (let ([(test then-branch) (car bodies)])
+      `(if-let ,test ,x 
+        ,then-branch
+        (which ,x . ,(cdr bodies))))
+    `(! 'match/fail "did not find a matching argument spec" ,x)))

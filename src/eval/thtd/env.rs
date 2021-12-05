@@ -13,7 +13,7 @@ pub fn define(
 
     let spec = args[0].to_owned();
     let val = engine.eval(env.clone(), args[1].to_owned());
-    let bindings = engine.destructure_assign(spec, val.to_owned())?;
+    let bindings = engine.destructure_assign(env.to_owned(), spec, val.to_owned())?;
     env.borrow_mut().merge_from(bindings);
 
     Ok(TailRec::Exit(val))
@@ -52,7 +52,8 @@ pub fn let_(
         if let Some(pair) = engine.sexp_to_list(binding)? {
             if let [spec, expr] = pair.as_slice() {
                 let evaled = engine.eval_inner(inner_env.clone(), expr.to_owned())?;
-                let bindings = engine.destructure_assign(spec.to_owned(), evaled)?;
+                let bindings =
+                    engine.destructure_assign(inner_env.to_owned(), spec.to_owned(), evaled)?;
                 inner_env.borrow_mut().merge_from(bindings);
                 specs.push(spec.to_owned());
                 continue;

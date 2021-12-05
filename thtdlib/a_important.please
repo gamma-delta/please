@@ -5,10 +5,3 @@
 
 (define define-macro (macro (name args body . bodies)
   `(define ,name (macro ,args ,body ,@bodies))))
-
-(defun test ([default x 'boring]) (prn x))
-
-(test "hi")
-(test)
-
-(exit)

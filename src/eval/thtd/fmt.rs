@@ -186,3 +186,9 @@ pub fn write(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
         .write_expr(args[0].to_owned())
         .map(|s| Gc::new(Expr::String(s.into_bytes())))
 }
+
+pub fn native_repr(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+    let repr = format!("{:?}", &args[0]);
+    Ok(Expr::string(repr.into_bytes()))
+}
