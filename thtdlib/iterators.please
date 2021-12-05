@@ -41,8 +41,8 @@
         (rest)))
     ()))
 
-(defun flat-map (f l)
-  (apply append (for f l)))
+(defun flat-map (f . rows)
+  (apply append (apply map f rows)))
 
 (defun mult1 (l r)
   (flat-map (\ (l) (for (\ (r) (cons r l)) r)) l))
