@@ -1,6 +1,7 @@
 //! Ruth's thtandard library.
 
 mod collections;
+mod context;
 mod control;
 mod env;
 mod eq;
@@ -17,6 +18,7 @@ mod quoting;
 mod strings;
 mod symbols;
 use collections::*;
+use context::*;
 use control::*;
 use env::*;
 use eq::*;
@@ -61,6 +63,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("catch", catch as _),
         ("with-handler", with_handler as _),
         // ("macro-expand", macro_expand as _),
+        ("with-context", with_ctx as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::SpecialForm {
@@ -146,11 +149,9 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("typeof", typeof_ as _),
         // collections
         ("map/new", new_map as _),
-        ("map/insert", map_insert as _),
-        ("map/insert/clobbered", map_insert_clobbered as _),
-        ("map/get", map_get as _),
-        ("map/remove", map_remove as _),
-        ("map/remove/clobbered", map_remove_clobbered as _),
+        ("map/insert-factory", map_insert_factory as _),
+        ("map/get-factory", map_get_factory as _),
+        ("map/remove-factory", map_remove_factory as _),
         ("map/len", map_len as _),
         ("map->list", map2list as _),
         // io
@@ -159,6 +160,8 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("profiling/start", start_profiling as _),
         ("profiling/check", check_profiling as _),
         ("profiling/stop", stop_profiling as _),
+        // context
+        ("get-context", get_ctx as _),
         // etc
         ("reload-thtdlib", reload_thtd as _),
         ("timeit", timeit as _),
@@ -288,4 +291,15 @@ pub fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) 
         arg,
     ]);
     engine.make_err("application/arg-type", msg, Some(data))
+}
+
+pub fn bad_ctx_type(engine: &mut Engine, ctx: Gc<Expr>, want: &str) -> Exception {
+    let msg = format!("in context, expected {}", want);
+    let data = Engine::list_to_sexp(&[Gc::new(Expr::String(want.as_bytes().to_owned())), ctx]);
+    engine.make_err("application/context-type", msg, Some(data))
+}
+
+pub fn bad_no_ctx(engine: &mut Engine, want: &str) -> Exception {
+    let msg = format!("in context, expected {}, but it was empty", want);
+    engine.make_err("application/no-context", msg, None)
 }

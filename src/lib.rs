@@ -13,6 +13,7 @@ use eval::TailRec;
 use itertools::Itertools;
 
 use std::{
+    borrow::Borrow,
     cmp::{Eq, PartialEq},
     collections::HashMap,
     fmt::{self, Write},
@@ -27,7 +28,7 @@ extern crate derivative;
 use bimap::BiHashMap;
 use gc::{Finalize, Gc, GcCell, Trace};
 
-#[derive(Derivative, Trace, Finalize)]
+#[derive(Derivative, Trace, Finalize, Clone)]
 #[derivative(Debug)]
 pub enum Expr {
     Integer(i64),
@@ -404,7 +405,7 @@ impl Namespace {
         self.mappings.get(&symbol).cloned().or_else(|| {
             self.parent
                 .as_ref()
-                .and_then(|parent| parent.borrow().lookup(symbol))
+                .and_then(|parent| parent.as_ref().borrow().lookup(symbol))
         })
     }
 

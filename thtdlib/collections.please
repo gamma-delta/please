@@ -1,6 +1,20 @@
 (defun map/keys (map) (for car (map->list map)))
 (defun map/vals (map) (for cdr (map->list map)))
 
+; get-clobbered use-env
+(defun map/insert (map . ks) (apply map/insert-factory false false map ks))
+(defun map/insert/clobbered (map . ks) (apply map/insert-factory true false map ks))
+(defun map/insert^ ks (apply map/insert-factory false true ks))
+(defun map/insert/clobbered^ ks (apply map/insert-factory true true ks))
+; use-env
+(defun map/get (map . ks) (apply map/get-factory false map ks))
+(defun map/get^ ks (apply map/get-factory true ks))
+; get-clobbered use-env
+(defun map/remove (map . ks) (apply map/remove-factory false false map ks))
+(defun map/remove/clobbered (map . ks) (apply map/remove-factory true false map ks))
+(defun map/remove^ ks (apply map/remove-factory false true ks))
+(defun map/remove/clobbered^ ks (apply map/remove-factory true true ks))
+
 (defun index1 (l x) 
   (which l
     [pair? (list/nth l x)]
