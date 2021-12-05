@@ -34,6 +34,7 @@ pub fn typeof_(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
     let sym = match &*args[0] {
         Expr::Integer(_) => "integer",
         Expr::Float(_) => "float",
+        Expr::Bool(_) => "bool",
         Expr::String(_) => "string",
         Expr::Symbol(_) => "symbol",
         Expr::Pair(_, _) => "pair",
@@ -67,6 +68,7 @@ predicates! {
     is_inexact
     is_nil
     is_string
+    is_bool
     is_symbol
     is_map
     is_callable

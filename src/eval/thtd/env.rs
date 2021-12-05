@@ -40,7 +40,7 @@ pub fn let_(
             return Err(bad_arg_type(
                 engine,
                 args[0].to_owned(),
-                0,
+                if loop_form.is_some() { 1 } else { 0 },
                 "list of (spec expr)",
             ))
         }

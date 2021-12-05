@@ -1,4 +1,4 @@
-(define-macro cond (. bodies)
+(define-macro cond bodies
   (if bodies
     (if (= 1 (list-len bodies))
       (car bodies) ; This way we don't need a [true do-thing] at the end
@@ -44,8 +44,8 @@
 
 (define-macro match (x . bodies)
   (if bodies
-    (let ([(test then-branch) (car bodies)])
-      `(if-let ,test ,x 
+    (let ([(spec then-branch) (car bodies)])
+      `(if-let ,spec ,x 
         ,then-branch
-        (which ,x . ,(cdr bodies))))
+        (match ,x . ,(cdr bodies))))
     `(! 'match/fail "did not find a matching argument spec" ,x)))

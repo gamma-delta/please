@@ -371,6 +371,9 @@ fn try_read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Optio
             Expr::Pair(quote_idx, quoted_idx)
         };
         Ok((Some(altogether), rest))
+    } else if let Some(b) = try_read_bool(s, state) {
+        let (b, rest) = b?;
+        Ok((Some(Expr::Bool(b)), rest))
     } else if let Some(int) = try_read_int(s, state) {
         let (int, rest) = int?;
         Ok((Some(Expr::Integer(int)), rest))
@@ -464,6 +467,16 @@ fn try_read_int<'a>(s: &'a str, _state: &mut Engine) -> Option<ReadResult<'a, i6
                 }
             }
         }
+    } else {
+        None
+    }
+}
+
+fn try_read_bool<'a>(s: &'a str, _: &mut Engine) -> Option<ReadResult<'a, bool>> {
+    let (s, rest) = read_until_delim(s);
+
+    if let Ok(b) = s.parse() {
+        Some(Ok((b, rest)))
     } else {
         None
     }

@@ -50,7 +50,7 @@
 (defun mult (lists)
   (fold mult1 '(()) lists))
 
-(defun repeat (elt [max false])
+(defun repeat (elt [default max false])
   (if max
     (if (>0 max)
       (lazy-cons elt (repeat elt (sub1 max)))

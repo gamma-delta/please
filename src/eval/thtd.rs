@@ -138,6 +138,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("nil?", is_nil as _),
         ("string?", is_string as _),
         ("symbol?", is_symbol as _),
+        ("bool?", is_bool as _),
         ("map?", is_map as _),
         ("callable?", is_callable as _),
         ("procedure?", is_procedure as _),

@@ -22,6 +22,9 @@ impl Engine {
                         write!(w, "<unknown #{}>", sym)
                     }
                 }
+                Expr::Bool(b) => {
+                    write!(w, "{}", b)
+                }
                 Expr::Pair(..) | Expr::LazyPair(..) => {
                     let (car, cdr) = engine.split_cons(expr).unwrap();
                     fn write_list<W: Write>(
@@ -127,6 +130,9 @@ impl Engine {
                 Expr::Float(f) => write!(w, "{:?}", f),
                 Expr::String(s) => {
                     write!(w, "{}", String::from_utf8_lossy(s))
+                }
+                Expr::Bool(b) => {
+                    write!(w, "{}", b)
                 }
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {

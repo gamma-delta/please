@@ -33,6 +33,7 @@ pub enum Expr {
     Integer(i64),
     Float(f64),
     String(Vec<u8>),
+    Bool(bool),
     /// Interned string.
     ///
     /// This number is the ID of this symbol and is used for quick equality
@@ -99,6 +100,10 @@ impl Expr {
         Gc::new(Self::String(s.into()))
     }
 
+    pub fn bool(b: bool) -> Gc<Self> {
+        Gc::new(Self::Bool(b))
+    }
+
     pub fn symbol(s: Symbol) -> Gc<Self> {
         Gc::new(Self::Symbol(s))
     }
@@ -126,6 +131,7 @@ impl PartialEq for Expr {
                     a == b
                 }
             }
+            (Bool(a), Bool(b)) => a == b,
             (String(a), String(b)) => a == b,
             (Symbol(a), Symbol(b)) => a == b,
             (Nil, Nil) => true,
@@ -173,6 +179,7 @@ impl Hash for Expr {
             }),
             String(x) => x.hash(state),
             Symbol(x) => state.write_u64(*x),
+            Bool(b) => b.hash(state),
             Nil => {}
             Pair(head, tail) => {
                 head.hash(state);
@@ -337,28 +344,14 @@ impl Engine {
     pub fn is_truthy(&self, expr: Gc<Expr>) -> bool {
         match &*expr {
             Expr::Nil => false,
-            Expr::Symbol(sym) => {
-                let f = self.interned_symbols.get_by_left("false");
-                if let Some(f) = f {
-                    // If it equals "false" return false
-                    // Otherwise true
-                    f != sym
-                } else {
-                    // somehow undefined false
-                    true
-                }
-            }
+            Expr::Bool(b) => *b,
             // everything else is truthy
             _ => true,
         }
     }
 
     pub fn make_bool(&mut self, b: bool) -> Gc<Expr> {
-        Gc::new(Expr::Symbol(self.intern_symbol(if b {
-            "true"
-        } else {
-            "false"
-        })))
+        Expr::bool(b)
     }
 
     /// Make an error, a cons list `'(! "msg")` or `'(! "msg" userdata)`.

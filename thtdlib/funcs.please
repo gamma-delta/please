@@ -49,7 +49,6 @@
 
 (define \ lambda)
 (define fn lambda)
-(define-macro \@ (. bodies) `(lambda (@) . ,bodies))
 
 (defun always? _ true)
 (defun never? _ false)

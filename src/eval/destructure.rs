@@ -143,11 +143,12 @@ impl Engine {
 
                     Ok(out)
                 }
-
                 _ if spec == val => {
                     // Well, it matches ... just return an empty namespace
+                    // TODO: this probably interacts weirdly with symbols that refer to other symbols
                     Ok(HashMap::new())
                 }
+
                 _ => {
                     let s = engine.write_expr(spec.to_owned())?;
                     let v = engine.write_expr(val.to_owned())?;

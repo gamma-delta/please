@@ -1,6 +1,3 @@
-; Boolean constants point to themselves so they eval to themselves.
-(define false 'false)
-(define true 'true)
 ; aliases
 (define null ())
 (define nil ())

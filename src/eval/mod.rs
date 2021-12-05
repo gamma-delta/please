@@ -45,6 +45,7 @@ impl Engine {
             // Passthru literals unchanged
             Expr::Integer(_)
             | Expr::Float(_)
+            | Expr::Bool(_)
             | Expr::Nil
             | Expr::String(_)
             | Expr::SpecialForm { .. }

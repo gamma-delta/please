@@ -24,7 +24,8 @@ impl Num {
         Ok(match &*expr {
             Expr::Integer(int) => Num::Int(*int),
             Expr::Float(float) => Num::Float(*float),
-            Expr::Symbol(sym) if *sym == engine.intern_symbol("true") => Num::Int(1),
+            // bools convert to ints!
+            Expr::Bool(b) => Num::Int(*b as _),
             _ if !engine.is_truthy(expr.to_owned()) => Num::Int(0),
             _ => return Err(bad_arg_type(engine, expr.clone(), idx, "number or bool")),
         })
