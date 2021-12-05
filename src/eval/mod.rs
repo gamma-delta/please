@@ -51,7 +51,8 @@ impl Engine {
             | Expr::SpecialForm { .. }
             | Expr::NativeProcedure { .. }
             | Expr::Procedure { .. }
-            | Expr::Map(_) => Ok(TailRec::Exit(expr)),
+            | Expr::Map(_)
+            | Expr::Transient(_) => Ok(TailRec::Exit(expr)),
             // Lookup the symbol
             &Expr::Symbol(id) => {
                 let idx = env.borrow().lookup(id);

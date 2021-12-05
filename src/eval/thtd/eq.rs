@@ -44,6 +44,7 @@ pub fn typeof_(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
         Expr::NativeProcedure { .. } => "native-procedure",
         Expr::Procedure { .. } => "procedure",
         Expr::Map(_) => "map",
+        Expr::Transient(_) => "transient",
     };
     Ok(Gc::new(Expr::Symbol(engine.intern_symbol(sym))))
 }
@@ -74,4 +75,5 @@ predicates! {
     is_callable
     is_procedure
     is_macro
+    is_transient
 }

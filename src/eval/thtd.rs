@@ -16,7 +16,7 @@ mod profiling;
 mod quoting;
 mod strings;
 mod symbols;
-use collections::*;
+mod transient;
 use control::*;
 use env::*;
 use eq::*;
@@ -36,7 +36,7 @@ use std::{fs, io::Write, path::Path};
 
 use gc::{Gc, GcCell};
 
-use crate::{Engine, EvalResult, Exception, Expr, Namespace};
+use crate::{Engine, EvalResult, Exception, Expr, Namespace, Value};
 
 const THTD_LIB_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/thtdlib");
 
@@ -143,16 +143,37 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("callable?", is_callable as _),
         ("procedure?", is_procedure as _),
         ("macro?", is_macro as _),
+        ("transient?", is_transient as _),
         ("typeof", typeof_ as _),
         // collections
-        ("map/new", new_map as _),
-        ("map/insert", map_insert as _),
-        ("map/insert/clobbered", map_insert_clobbered as _),
-        ("map/get", map_get as _),
-        ("map/remove", map_remove as _),
-        ("map/remove/clobbered", map_remove_clobbered as _),
-        ("map/len", map_len as _),
-        ("map->list", map2list as _),
+        ("map/new", collections::new_map as _),
+        ("map/insert", collections::map_insert as _),
+        (
+            "map/insert/clobbered",
+            collections::map_insert_clobbered as _,
+        ),
+        ("map/get", collections::map_get as _),
+        ("map/remove", collections::map_remove as _),
+        (
+            "map/remove/clobbered",
+            collections::map_remove_clobbered as _,
+        ),
+        ("map/len", collections::map_len as _),
+        ("map->list", collections::map2list as _),
+        // transients
+        ("transient/new", transient::new as _),
+        ("transient/persist!", transient::persist_bang as _),
+        ("transient/has-value", transient::has_value as _),
+        ("map/remove!", transient::map::remove as _),
+        (
+            "map/remove/clobbered!",
+            transient::map::remove_clobbered as _,
+        ),
+        ("map/insert!", transient::map::insert as _),
+        (
+            "map/insert/clobbered!",
+            transient::map::insert_clobbered as _,
+        ),
         // io
         ("io/read-file", read_file as _),
         // profiling
@@ -288,4 +309,19 @@ pub fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) 
         arg,
     ]);
     engine.make_err("application/arg-type", msg, Some(data))
+}
+
+pub fn take_transient(
+    engine: &mut Engine,
+    t: GcCell<Option<Box<Expr>>>,
+) -> Result<Expr, Exception> {
+    let mut lock = t.borrow_mut();
+    match lock.take() {
+        Some(t) => Ok(*t),
+        None => Err(engine.make_err(
+            "transient/taken",
+            "the value was already removed from this transient".to_string(),
+            None,
+        )),
+    }
 }

@@ -1,5 +1,7 @@
 //! doobadoobadoo collection gadgets
 
+use std::borrow::Cow;
+
 use itertools::Itertools;
 
 use crate::{hash::GcMap, Value};
@@ -75,7 +77,14 @@ pub fn map_get(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) ->
     check_min_argc(engine, args, 2)?;
 
     let map = match &*args[0] {
-        Expr::Map(m) => m,
+        Expr::Map(m) => Cow::Borrowed(m),
+        Expr::Transient(t) => {
+            let mut t = take_transient(engine, t.clone())?;
+            match &mut t {
+                Expr::Map(map) => Cow::Owned(std::mem::take(map)),
+                _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "map")),
+            }
+        }
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "map")),
     };
 
@@ -135,7 +144,14 @@ pub fn map_len(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) ->
     check_argc(engine, args, 1, 1)?;
 
     let map = match &*args[0] {
-        Expr::Map(m) => m,
+        Expr::Map(m) => Cow::Borrowed(m),
+        Expr::Transient(t) => {
+            let mut t = take_transient(engine, t.clone())?;
+            match &mut t {
+                Expr::Map(map) => Cow::Owned(std::mem::take(map)),
+                _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "map")),
+            }
+        }
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "map")),
     };
 
@@ -146,7 +162,14 @@ pub fn map2list(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -
     check_argc(engine, args, 1, 1)?;
 
     let map = match &*args[0] {
-        Expr::Map(m) => m,
+        Expr::Map(m) => Cow::Borrowed(m),
+        Expr::Transient(t) => {
+            let mut t = take_transient(engine, t.clone())?;
+            match &mut t {
+                Expr::Map(map) => Cow::Owned(std::mem::take(map)),
+                _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "map")),
+            }
+        }
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "map")),
     };
 

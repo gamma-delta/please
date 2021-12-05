@@ -27,7 +27,7 @@ extern crate derivative;
 use bimap::BiHashMap;
 use gc::{Finalize, Gc, GcCell, Trace};
 
-#[derive(Derivative, Trace, Finalize)]
+#[derive(Derivative, Trace, Finalize, Clone)]
 #[derivative(Debug)]
 pub enum Expr {
     Integer(i64),
@@ -70,6 +70,8 @@ pub enum Expr {
     },
 
     Map(GcMap),
+
+    Transient(GcCell<Option<Box<Expr>>>),
 }
 
 impl Expr {
@@ -115,6 +117,10 @@ impl Expr {
     pub fn nil() -> Gc<Self> {
         Gc::new(Self::Nil)
     }
+
+    pub fn transient(expr: Expr) -> Gc<Self> {
+        Gc::new(Expr::Transient(GcCell::new(Some(Box::new(expr)))))
+    }
 }
 
 /// Because NaN was a mistake, all NaN are considered equal to each other.
@@ -157,6 +163,7 @@ impl PartialEq for Expr {
             (Map(a), Map(b)) => a == b,
 
             (LazyPair(..), LazyPair(..)) => std::ptr::eq(self, other),
+            (Transient(..), Transient(..)) => std::ptr::eq(self, other),
             _ => false,
         }
     }
@@ -199,6 +206,7 @@ impl Hash for Expr {
                 env.is_some().hash(state);
             }
             Map(map) => map.hash(state),
+            Transient(..) => std::ptr::hash(self, state),
         }
     }
 }

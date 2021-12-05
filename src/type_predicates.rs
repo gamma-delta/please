@@ -33,4 +33,5 @@ predicates! {
     (is_callable (Expr::NativeProcedure { .. } | Expr::SpecialForm { .. } | Expr::Procedure { .. }))
     (is_procedure (Expr::NativeProcedure { .. } | Expr::Procedure { env: Some(_), .. }))
     (is_macro (Expr::SpecialForm { .. } | Expr::Procedure { env: None, .. }))
+    (is_transient (Expr::Transient(_)))
 }

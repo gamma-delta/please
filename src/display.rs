@@ -109,6 +109,18 @@ impl Engine {
                     }
                     write!(w, "}}")
                 }
+                Expr::Transient(t) => {
+                    let lock = t.borrow();
+                    match &*lock {
+                        Some(t) => {
+                            write!(w, "(transient/new ")?;
+                            let waaugh = Gc::new((**t).clone());
+                            recur(engine, w, waaugh)?;
+                            write!(w, ")")
+                        }
+                        None => write!(w, "<taken-transient>"),
+                    }
+                }
             }
         }
         let mut writer = String::new();
@@ -202,6 +214,18 @@ impl Engine {
                         }
                     }
                     write!(w, "}}")
+                }
+                Expr::Transient(t) => {
+                    let lock = t.borrow();
+                    match &*lock {
+                        Some(t) => {
+                            write!(w, "(transient/new ")?;
+                            let waaugh = Gc::new((**t).clone());
+                            recur(engine, w, waaugh)?;
+                            write!(w, ")")
+                        }
+                        None => write!(w, "<taken-transient>"),
+                    }
                 }
             }
         }
