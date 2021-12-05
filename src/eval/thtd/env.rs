@@ -12,7 +12,7 @@ pub fn define(
     check_argc(engine, args, 2, 2)?;
 
     let spec = args[0].to_owned();
-    let val = engine.eval(env.clone(), args[1].to_owned());
+    let val = engine.eval_inner(env.clone(), args[1].to_owned())?;
     let bindings = engine.destructure_assign(env.to_owned(), spec, val.to_owned())?;
     env.borrow_mut().merge_from(bindings);
 
@@ -46,7 +46,7 @@ pub fn let_(
         }
     };
 
-    let inner_env = Gc::new(GcCell::new(Namespace::new(env.clone())));
+    let inner_env = Gc::new(GcCell::new(Namespace::new(env)));
     let mut specs = Vec::with_capacity(arg_bindings.len());
     for binding in arg_bindings {
         if let Some(pair) = engine.sexp_to_list(binding)? {
