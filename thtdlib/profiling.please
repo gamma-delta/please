@@ -24,9 +24,8 @@
       [number? (\ (x) (<= filter? (fourth x)))]
       (! 'profiling/data/crunch (curry string "bad filter type ") (typeof filter?)))]
     [unsorted (for 
-      ; i have got to get destructuring working
-      (\ (entry) (let ([name (first entry)] [count (second entry)] [time (third entry)])
-        (list name (/ time count) count time))) 
+      (\ ((name count time))
+        (list name (/ time count) count time))
       (map->list stats))])
     ; Invert the sort so longest comes first
     (sort/by-key (filter filter?' unsorted) keygen >)))
@@ -34,8 +33,8 @@
 ; Return (total-count total-time)
 (defun profiling/data/summarize (stats)
   (fold 
-    (\ (acc entry) 
-      (list (+ (first acc) (second entry)) (+ (second acc) (third entry))))
+    (\ ((count time) (_ c t)) 
+      (list (+ count c) (+ time t)))
     '(0 0)
     (map->list stats)))
 
@@ -43,17 +42,17 @@
 (defun profiling/data/pprint (stats [default filter? always?] [default sort-key ''avg-time])
   (let (
     [crunched (profiling/data/crunch stats filter? sort-key)]
-    [summary (profiling/data/summarize stats)])
+    [(total-count total-time) (profiling/data/summarize stats)])
     (string 
       (apply string (map
-        (\ (idx entry) (string 
+        (\ (idx (name avg-time count time)) (string 
           "#" (++ idx) ": " 
-          (third entry) "x " (first entry) 
-          " (avg. " (number->rounded-string (* 1.0e6 (second entry)) 1) "us, "
-          "total " (number->rounded-string (* 1000 (fourth entry)) 1) "ms)\n"))
+          count "x " name 
+          " (avg. " (number->rounded-string (* 1.0e6 avg-time) 1) "us, "
+          "total " (number->rounded-string (* 1000 time) 1) "ms)\n"))
         (range) crunched))
-        "---\nTotal time: " (number->rounded-string (second summary) 1) "s, "
-        "evaled " (first summary) " sexprs")))
+        "---\nTotal time: " (number->rounded-string total-time 1) "s, "
+        "evaled " total-count " sexprs")))
 
 
 ; Execute an expression, print some profiling stats to the console, and return the value.
