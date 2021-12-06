@@ -118,6 +118,10 @@ impl Expr {
         Gc::new(Self::Nil)
     }
 
+    pub fn map(m: GcMap) -> Gc<Self> {
+        Gc::new(Self::Map(m))
+    }
+
     pub fn transient(expr: Expr) -> Gc<Self> {
         Gc::new(Expr::Transient(GcCell::new(Some(Box::new(expr)))))
     }

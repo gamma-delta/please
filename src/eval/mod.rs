@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::{Engine, EvalResult, Exception, Expr, Namespace, Symbol, Value};
+use crate::{hash::GcMap, Engine, EvalResult, Exception, Expr, Namespace, Symbol, Value};
 
 mod destructure;
 pub mod thtd;
@@ -51,7 +51,6 @@ impl Engine {
             | Expr::SpecialForm { .. }
             | Expr::NativeProcedure { .. }
             | Expr::Procedure { .. }
-            | Expr::Map(_)
             | Expr::Transient(_) => Ok(TailRec::Exit(expr)),
             // Lookup the symbol
             &Expr::Symbol(id) => {
@@ -65,6 +64,17 @@ impl Engine {
                         Some(expr),
                     )),
                 }
+            }
+            // OK this looks really stupid, but because maps are read in the parser,
+            // something like (let ([x 42]) #{answer x}) will produce symbol(answer) => symbol(x)
+            Expr::Map(map) => {
+                let mut out = GcMap::new();
+                for (k, v) in map.iter() {
+                    let k_eval = self.eval_inner(env.to_owned(), k.to_owned())?;
+                    let v_eval = self.eval_inner(env.to_owned(), v.to_owned())?;
+                    out.insert(k_eval, v_eval);
+                }
+                Ok(TailRec::Exit(Expr::map(out)))
             }
             Expr::Pair(..) | Expr::LazyPair(..) => {
                 let (car, cdr) = self.split_cons(expr.clone())?;

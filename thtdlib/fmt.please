@@ -1,0 +1,2 @@
+(defun print args
+  (discard (prn (apply string args))))

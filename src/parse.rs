@@ -5,7 +5,7 @@ use gc::Gc;
 use itertools::Either;
 use thiserror::Error;
 
-use crate::{Engine, Expr, Symbol};
+use crate::{hash::GcMap, Engine, Expr, Symbol};
 
 /// Error when lexing or parsing an expression
 #[derive(Error)]
@@ -153,6 +153,14 @@ impl ExprParseError {
             ExprParseErrorInfo::Eof => {
                 report = report.with_label(Label::new(all).with_message("found nothing here"))
             }
+            ExprParseErrorInfo::MapNeedsEven(count) => {
+                report = report.with_label(
+                    Label::new(all).with_message(format!("the sexpr had length {}", *count)),
+                )
+            }
+            ExprParseErrorInfo::MapNeedsSexpr => {
+                report = report.with_label(Label::new(all).with_message("should be a sexpr"))
+            }
         }
 
         ExprParseError {
@@ -190,7 +198,7 @@ pub enum ExprParseErrorInfo {
     #[error("could not figure out what kind of token this was meant to be")]
     IndeterminableToken,
     /// This error should span all the way from the opening paren to the closer
-    #[error("expected a closing {closer:?} to this sexpr`")]
+    #[error("expected a closing {closer:?} to this sexpr")]
     ExpectedCloseParen { opener: char, closer: char },
     #[error("did not expect a closing {closer:?} here")]
     UnexpectedCloseParen { closer: char },
@@ -223,6 +231,11 @@ pub enum ExprParseErrorInfo {
     PrefixNothing,
     #[error("expected a datum but found nothing")]
     Eof,
+    #[error("expected a sexpr after a # for a map literal")]
+    MapNeedsSexpr,
+    /// Number is how many exprs ended up being there
+    #[error("map literal requires an even number of exprs")]
+    MapNeedsEven(usize),
 }
 
 struct ExprParseErrorLimited<'a> {
@@ -386,6 +399,9 @@ fn try_read_expr<'a>(whole: &'a str, state: &mut Engine) -> ReadResult<'a, Optio
     } else if let Some(ur_mom) = try_read_sexpr(s, state) {
         let (sexhaha, rest) = ur_mom?;
         Ok((Some(sexhaha), rest))
+    } else if let Some(map) = try_read_map(s, state) {
+        let (map, rest) = map?;
+        Ok((Some(Expr::Map(map)), rest))
     } else if let Some(symbol) = try_read_symbol(s, state) {
         // Do symbols last so we need to specially omit as little as possible
         let (id, rest) = symbol?;
@@ -761,12 +777,45 @@ fn special_prefixes<'a>(s: &'a str) -> Option<(&'static str, &'a str, bool)> {
         // put this first so it looks for it first
         (",@", "unquote-splicing", true),
         (",", "unquote", true),
-        ("#", "map/new", false),
     ]
     .iter()
     .find_map(|(header, quote, outside)| {
         s.strip_prefix(header).map(|rest| (*quote, rest, *outside))
     })
+}
+
+fn try_read_map<'a>(s: &'a str, state: &mut Engine) -> Option<ReadResult<'a, GcMap>> {
+    let (s, sexp_str) = read_until_delim(s);
+    if s == "#" {
+        match try_read_sexpr(sexp_str, state) {
+            Some(Ok((expr, rest))) => {
+                // safe to unwrap because it's not using any lazy pairs and because it will always be a sexpr
+                let kvs = state.sexp_to_list(Gc::new(expr)).unwrap().unwrap();
+                if kvs.len() % 2 != 0 {
+                    let (start, _) = string_pos(sexp_str, rest);
+                    let offender = &sexp_str[..start];
+                    return Some(Err(ExprParseErrorLimited {
+                        data: ExprParseErrorInfo::MapNeedsEven(kvs.len()),
+                        offender,
+                    }));
+                }
+
+                let mut map = GcMap::new();
+                for kv in kvs.chunks_exact(2) {
+                    map.insert(kv[0].to_owned(), kv[1].to_owned());
+                }
+
+                Some(Ok((map, rest)))
+            }
+            Some(Err(ono)) => Some(Err(ono)),
+            None => Some(Err(ExprParseErrorLimited {
+                data: ExprParseErrorInfo::MapNeedsSexpr,
+                offender: sexp_str,
+            })),
+        }
+    } else {
+        None
+    }
 }
 
 /// Find the byte positions of the child string's start and end in the parent string.
