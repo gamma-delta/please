@@ -1,0 +1,2 @@
+(define λ lambda)
+(print (for (λ (s) (string/len s)) '("uwu" "owo" "ඞ")))

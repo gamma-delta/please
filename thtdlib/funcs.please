@@ -48,7 +48,7 @@
 (define-macro thunk* bodies `(\ _ . ,bodies)) ; allow any args
 
 (define \ lambda)
-(define fn lambda)
+(define λ lambda) ; turns out please supports utf8
 
 (defun always? _ true)
 (defun never? _ false)

@@ -49,3 +49,8 @@
         ,then-branch
         (match ,x . ,(cdr bodies))))
     `(! 'match/fail "did not find a matching argument spec" ,x)))
+
+(define-macro let1 (pat body . bodies)
+  (if (symbol? pat)
+    `(let ,pat (,body) ,@bodies)
+    `(let (,pat) ,body ,@bodies)))
