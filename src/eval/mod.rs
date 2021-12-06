@@ -78,61 +78,63 @@ impl Engine {
             }
             Expr::Pair(..) | Expr::LazyPair(..) => {
                 let (car, cdr) = self.split_cons(expr.clone())?;
+                let caller_name = if let Expr::Symbol(sym) = &*car {
+                    Some(*sym)
+                } else {
+                    None
+                };
                 let func = self.eval_inner(env.clone(), car)?;
 
-                let mut args = match self.sexp_to_list(cdr.clone())? {
-                    Some(it) => it,
-                    None => {
-                        return Err(self.make_err(
-                            "application/cdr-list",
-                            "application: cdr must be a proper list".to_string(),
-                            Some(cdr),
-                        ))
+                let out = (|| {
+                    let mut args = match self.sexp_to_list(cdr.clone())? {
+                        Some(it) => it,
+                        None => {
+                            return Err(self.make_err(
+                                "application/cdr-list",
+                                "application: cdr must be a proper list".to_string(),
+                                Some(cdr),
+                            ))
+                        }
+                    };
+
+                    // Specially handle macros.
+                    match &*func {
+                        Expr::SpecialForm { func, name } => return func(self, env, &args),
+                        Expr::Procedure {
+                            env: None,
+                            arg_spec,
+                            body,
+                            name,
+                        } => {
+                            return self
+                                .call_procedure(
+                                    env,
+                                    args,
+                                    arg_spec.to_owned(),
+                                    body.to_owned(),
+                                    None,
+                                    *name,
+                                )
+                                .map(|(tr, _)| tr)
+                        }
+                        _ => {}
                     }
-                };
 
-                // Specially handle macros.
-                match &*func {
-                    Expr::SpecialForm { func, name } => {
-                        return func(self, env, &args).map_err(|mut exn| {
-                            exn.call_trace.trace.push(Some(*name));
-                            exn
-                        })
-                    }
-                    Expr::Procedure {
-                        env: None,
-                        arg_spec,
-                        body,
-                        name,
-                    } => {
-                        return self
-                            .call_procedure(
-                                env,
-                                args,
-                                arg_spec.to_owned(),
-                                body.to_owned(),
-                                None,
-                                *name,
-                            )
-                            .map(|(tr, _)| tr)
-                            .map_err(|mut exn| {
-                                exn.call_trace.trace.push(*name);
-                                exn
-                            })
-                    }
-                    _ => {}
-                }
+                    // Ok, onto application
+                    // So we don't try to squish the last argument in, push a nil.
+                    args.push(Expr::nil());
 
-                // Ok, onto application
-                // So we don't try to squish the last argument in, push a nil.
-                args.push(Expr::nil());
+                    let evaled_args = args
+                        .into_iter()
+                        .map(|expr| self.eval_inner(env.clone(), expr))
+                        .collect::<Result<Vec<_>, _>>()?;
 
-                let evaled_args = args
-                    .into_iter()
-                    .map(|expr| self.eval_inner(env.clone(), expr))
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                self.apply_inner(env, func, evaled_args)
+                    self.apply_inner(env, func, evaled_args)
+                })();
+                out.map_err(|mut exn| {
+                    exn.call_trace.trace.push(caller_name);
+                    exn
+                })
             }
         }
     }
