@@ -1,5 +1,5 @@
-(defun map/keys (map) (for car (map->list map)))
-(defun map/vals (map) (for cdr (map->list map)))
+(defun map/keys (map) (for first (map->list map)))
+(defun map/vals (map) (for second (map->list map)))
 
 (defun index1 (l x) 
   (which l
@@ -25,10 +25,10 @@
 (defun counter/get (counter k)
   (or (map/get counter k) 0))
 (defun counter/merge! (counter from)
-  (fold (\ (counter (k . c)) (counter/add-n! counter (list k c)))
+  (fold (\ (counter (k c)) (counter/add-n! counter (list k c)))
     counter (map->list from)))
 (defun counter/inflate (counter)
-  (flat-map (\ ((k . c)) (repeat k c))
+  (flat-map (\ ((k c)) (repeat k c))
     (map->list counter)))
 (defun counter/count (counter)
-  (fold (\ (acc (_ . c)) (+ acc c)) 0 (map->list counter)))
+  (fold (\ (acc (_ c)) (+ acc c)) 0 (map->list counter)))

@@ -7,20 +7,20 @@ use super::*;
 use paste::paste;
 
 #[derive(Clone, Copy)]
-enum Num {
+pub enum Num {
     Int(i64),
     Float(f64),
 }
 
 impl Num {
-    fn to_expr(self) -> Value {
+    pub fn to_expr(self) -> Value {
         Gc::new(match self {
             Num::Int(int) => Expr::Integer(int),
             Num::Float(float) => Expr::Float(float),
         })
     }
 
-    fn from_expr(engine: &mut Engine, expr: Gc<Expr>, idx: usize) -> Result<Num, Exception> {
+    pub fn from_expr(engine: &mut Engine, expr: Gc<Expr>, idx: usize) -> Result<Num, Exception> {
         Ok(match &*expr {
             Expr::Integer(int) => Num::Int(*int),
             Expr::Float(float) => Num::Float(*float),
@@ -31,14 +31,14 @@ impl Num {
         })
     }
 
-    fn as_float(self) -> f64 {
+    pub fn as_float(self) -> f64 {
         match self {
             Num::Int(int) => int as _,
             Num::Float(float) => float,
         }
     }
 
-    fn to_string(self) -> String {
+    pub fn to_string(self) -> String {
         match self {
             Num::Int(int) => int.to_string(),
             Num::Float(float) => float.to_string(),

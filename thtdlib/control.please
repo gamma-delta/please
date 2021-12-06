@@ -45,12 +45,21 @@
 (define-macro match (x . bodies)
   (if bodies
     (let ([(spec then-branch) (car bodies)])
-      `(if-let ,spec ,x 
+      `(if-match ,spec ,x 
         ,then-branch
         (match ,x . ,(cdr bodies))))
     `(! 'match/fail "did not find a matching argument spec" ,x)))
+(define-macro matches? (spec expr)
+  `(if-match ,spec ,expr true false))
 
 (define-macro let1 (pat body . bodies)
   (if (symbol? pat)
     `(let ,pat (,body) ,@bodies)
     `(let (,pat) ,body ,@bodies)))
+
+; Like if-match, but only runs the `then` case if `expr` also evals to something truthy
+(define-macro if-let (spec expr then else)
+  `(let1 [evaled ,expr]
+    (if-match ,spec evaled
+      (if evaled ,then ,else)
+      ,else)))

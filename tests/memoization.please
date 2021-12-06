@@ -1,0 +1,19 @@
+(print "Memoization")
+
+; A function that takes a long time to calculate
+(defun fibonacci (n)
+  (match n
+    [0 0]
+    [1 1]
+    [n (+ (fibonacci (- n 1)) (fibonacci (- n 2)))]))
+
+(define fibonacci/memo (memoize fibonacci))
+
+(let (
+  [(F_20 . profile) (profiling/get-stats (for fibonacci (range 21)))]
+  [(F_20/memo . profile/memo) (profiling/get-stats (for fibonacci/memo (range 21)))]
+  [time (second (profiling/data/summarize profile))]
+  [time/memo (second (profiling/data/summarize profile/memo))])
+  (assert-eq (last F_20) 6765)
+  (assert-eq F_20 F_20/memo)
+  (assert (< time/memo time)))

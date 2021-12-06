@@ -1,5 +1,7 @@
+(print "Ackermann")
+
 ; Test long recursions
-(defun ackermann (m n) (match (m n)
+(defun ackermann (m n) (match (list m n)
   [(0 n) (+ n 1)]
   [(m 0) (ackermann (-- m) 1)]
   [(m n) (ackermann (-- m) (ackermann m (-- n)))]))

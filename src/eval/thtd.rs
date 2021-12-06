@@ -34,7 +34,7 @@ use symbols::*;
 
 use std::{fs, io::Write, path::Path};
 
-use gc::{Gc, GcCell};
+use gc::{Gc, GcCell, GcCellRef};
 
 use crate::{Engine, EvalResult, Exception, Expr, Namespace, Value};
 
@@ -53,7 +53,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("macro", macro_ as _),
         ("let", let_ as _),
         ("if", if_ as _),
-        ("if-let", if_let as _),
+        ("if-match", if_let as _),
         ("do", do_ as _),
         ("and", and as _),
         ("or", or as _),
@@ -147,23 +147,26 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("typeof", typeof_ as _),
         // collections
         ("map/new", collections::new_map as _),
+        ("map/get", collections::map_get as _),
+        ("map/contains?", collections::map_contains as _),
+        ("map/len", collections::map_len as _),
+        ("map->list", collections::map2list as _),
         ("map/insert", collections::map_insert as _),
         (
             "map/insert/clobbered",
             collections::map_insert_clobbered as _,
         ),
-        ("map/get", collections::map_get as _),
         ("map/remove", collections::map_remove as _),
         (
             "map/remove/clobbered",
             collections::map_remove_clobbered as _,
         ),
-        ("map/len", collections::map_len as _),
-        ("map->list", collections::map2list as _),
         // transients
         ("transient/new", transient::new as _),
-        ("transient/persist!", transient::persist_bang as _),
+        ("transient/persist!", transient::persist as _),
         ("transient/has-value", transient::has_value as _),
+        ("transient/update!", transient::update as _),
+        ("transient/replace!", transient::replace as _),
         ("map/remove!", transient::map::remove as _),
         (
             "map/remove/clobbered!",
@@ -174,6 +177,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
             "map/insert/clobbered!",
             transient::map::insert_clobbered as _,
         ),
+        ("map/clear!", transient::map::clear as _),
         // io
         ("io/read-file", read_file as _),
         // profiling
@@ -184,6 +188,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("reload-thtdlib", reload_thtd as _),
         ("timeit", timeit as _),
         ("exit", exit as _),
+        ("sleep", sleep as _),
     ] {
         let symbol = engine.intern_symbol(name);
         let handle = Gc::new(Expr::NativeProcedure {
@@ -313,7 +318,7 @@ pub fn bad_arg_type(engine: &mut Engine, arg: Gc<Expr>, idx: usize, want: &str) 
 
 pub fn take_transient(
     engine: &mut Engine,
-    t: GcCell<Option<Box<Expr>>>,
+    t: &GcCell<Option<Box<Expr>>>,
 ) -> Result<Expr, Exception> {
     let mut lock = t.borrow_mut();
     match lock.take() {
@@ -323,5 +328,24 @@ pub fn take_transient(
             "the value was already removed from this transient".to_string(),
             None,
         )),
+    }
+}
+
+/// If this returns Ok, it's safe to unwrap the Option.
+///
+/// Not sure how to lifetime-fu this any better
+pub fn borrow_transient<'lock>(
+    engine: &mut Engine,
+    t: &'lock GcCell<Option<Box<Expr>>>,
+) -> Result<GcCellRef<'lock, Option<Box<Expr>>>, Exception> {
+    let lock = t.borrow();
+    if lock.is_some() {
+        Ok(lock)
+    } else {
+        Err(engine.make_err(
+            "transient/taken",
+            "the value was already removed from this transient".to_string(),
+            None,
+        ))
     }
 }

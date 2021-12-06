@@ -21,7 +21,7 @@ fn map_insert_inner(
     check_min_argc(engine, args, 1)?;
 
     let trans = match &*args[0] {
-        Expr::Transient(t) => t.to_owned(),
+        Expr::Transient(t) => t,
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "transient map")),
     };
     let mut taken = take_transient(engine, trans)?;
@@ -85,7 +85,7 @@ fn map_remove_inner(
     check_min_argc(engine, args, 2)?;
 
     let trans = match &*args[0] {
-        Expr::Transient(t) => t.to_owned(),
+        Expr::Transient(t) => t,
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "transient map")),
     };
     let mut taken = take_transient(engine, trans)?;
@@ -116,4 +116,29 @@ fn map_remove_inner(
     } else {
         trans
     })
+}
+
+pub fn clear(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let trans = match &*args[0] {
+        Expr::Transient(t) => t,
+        _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "transient map")),
+    };
+    let mut taken = take_transient(engine, trans)?;
+    let mut map = match &mut taken {
+        Expr::Map(m) => std::mem::take(m),
+        ono => {
+            return Err(bad_arg_type(
+                engine,
+                Gc::new(ono.clone()),
+                0,
+                "transient map",
+            ))
+        }
+    };
+
+    map.clear();
+
+    Ok(Expr::transient(Expr::Map(map)))
 }

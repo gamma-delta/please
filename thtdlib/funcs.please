@@ -59,3 +59,12 @@
     (if (list? args)
       (list-len args)
       'inf)))
+
+(defun memoize (fn)
+  (define memo (transient/new (map/new)))
+  (lambda args
+    (if (map/contains? memo args)
+      (map/get memo args)
+      (let1 [answer (apply fn args)]
+        (transient/replace! memo (map/insert! memo args answer))
+        answer))))

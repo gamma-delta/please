@@ -1,3 +1,5 @@
+(print "Maps")
+
 (define mymap (apply map/new (flat-map (\ (x) (list (string x) (++ x))) (range 100))))
 (assert-eq (apply + (map/vals mymap)) 5050)
 

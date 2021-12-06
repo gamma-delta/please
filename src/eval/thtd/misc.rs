@@ -1,6 +1,6 @@
 //! Random things that I don't know where else to put.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::Value;
 
@@ -36,4 +36,11 @@ pub fn exit(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -> Ev
     };
     // Very professional here
     panic!("{}", msg);
+}
+
+pub fn sleep(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Value]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+    let seconds = Num::from_expr(engine, args[0].to_owned(), 0)?;
+    std::thread::sleep(Duration::from_secs_f64(seconds.as_float()));
+    Ok(Expr::nil())
 }
