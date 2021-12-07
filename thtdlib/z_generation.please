@@ -36,3 +36,36 @@
       (make-cmpnum-family ,(-- n)))
     ()))
 (make-cmpnum-family 9)
+
+(defun read-family (types)
+  (for (\ (type) (let (
+    [out-name (if (list? type) (first type) type)]
+    [pred-name (if (list? type) (second type) type)]
+    [fn-name (string->symbol (string "read/" out-name))]
+    [predicate? (string->symbol (string pred-name "?"))])
+    `(defun ,fn-name (str)
+      (let1 [datum (read str)] (cond
+        [(!= 1 (list/len datum)) (! 
+          ',(string->symbol (string "read/" out-name "/count"))
+          (string "expected to read 1 datum but instead got " (list/len datum))
+          datum)]
+        [(not (,predicate? (car datum))) (!
+          ',(string->symbol (string "read/" out-name "/invalid"))
+          (\ (d) (string "the read type was " (typeof d) ", not " ,out-name))
+          (car datum))]
+        (car datum))))))
+    types))
+(define-macro make-read-family (types)
+  `(do ,@(read-family types)))
+(make-read-family (
+  "number"
+  ("integer" "exact")
+  ("float" "inexact")
+  "string"
+  "symbol"
+  "bool"
+  "pair"
+  "list"
+  "nil"
+  "map"))
+; if you want to read callables you're gonna have to do that yourself my friend

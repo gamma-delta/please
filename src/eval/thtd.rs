@@ -119,6 +119,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("read", read as _),
         ("write", write as _),
         ("native-repr", native_repr as _),
+        ("peg/match", peg::peg_match as _),
         // list/pair
         ("cons", cons as _),
         ("car", car as _),

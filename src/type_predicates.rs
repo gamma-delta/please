@@ -35,3 +35,23 @@ predicates! {
     (is_macro (Expr::SpecialForm { .. } | Expr::Procedure { env: None, .. }))
     (is_transient (Expr::Transient(_)))
 }
+
+impl Expr {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Expr::Integer(_) => "integer",
+            Expr::Float(_) => "float",
+            Expr::Bool(_) => "bool",
+            Expr::String(_) => "string",
+            Expr::Symbol(_) => "symbol",
+            Expr::Pair(_, _) => "pair",
+            Expr::LazyPair(_, _, _) => "lazy-pair",
+            Expr::Nil => "nil",
+            Expr::SpecialForm { .. } => "special-form",
+            Expr::NativeProcedure { .. } => "native-procedure",
+            Expr::Procedure { .. } => "procedure",
+            Expr::Map(_) => "map",
+            Expr::Transient(_) => "transient",
+        }
+    }
+}

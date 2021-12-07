@@ -31,21 +31,7 @@ pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
 pub fn typeof_(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     check_argc(engine, args, 1, 1)?;
 
-    let sym = match &*args[0] {
-        Expr::Integer(_) => "integer",
-        Expr::Float(_) => "float",
-        Expr::Bool(_) => "bool",
-        Expr::String(_) => "string",
-        Expr::Symbol(_) => "symbol",
-        Expr::Pair(_, _) => "pair",
-        Expr::LazyPair(_, _, _) => "lazy-pair",
-        Expr::Nil => "nil",
-        Expr::SpecialForm { .. } => "special-form",
-        Expr::NativeProcedure { .. } => "native-procedure",
-        Expr::Procedure { .. } => "procedure",
-        Expr::Map(_) => "map",
-        Expr::Transient(_) => "transient",
-    };
+    let sym = args[0].type_name();
     Ok(Gc::new(Expr::Symbol(engine.intern_symbol(sym))))
 }
 

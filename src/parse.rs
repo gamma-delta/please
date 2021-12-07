@@ -738,7 +738,13 @@ fn escape(s: &str) -> Result<(String, &str), InvalidEscape> {
                 '"' => Ok(("\"".to_string(), naive_rest)),
                 '\'' => Ok(("'".to_string(), naive_rest)),
                 'n' => Ok(("\n".to_string(), naive_rest)),
+                'r' => Ok(("\r".to_string(), naive_rest)),
                 't' => Ok(("\t".to_string(), naive_rest)),
+                '0' => Ok(("\0".to_string(), naive_rest)),
+                // "Formfeed Page Break"
+                'f' => Ok(("\x0c".to_string(), naive_rest)),
+                // "Vertical Tab"
+                'v' => Ok(("\x0b".to_string(), naive_rest)),
 
                 _ => Err(InvalidEscape::BadChar(sentinel)),
             }

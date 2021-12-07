@@ -13,7 +13,7 @@
     [1 1]
     [n (+ (loop (- n 1)) (loop (- n 2)))])))
 
-(define n 20)
+(define n 10)
 (let (
   [(fibs . profile) (profiling/get-stats (fibonacci n))]
   [(fibs/memo . profile/memo) (profiling/get-stats (fibonacci/memo n))]

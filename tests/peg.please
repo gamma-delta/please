@@ -1,0 +1,14 @@
+(print "PEG")
+
+; Apparently emails are PITAs to parse.
+(define email-peg '#{
+  i (+ w (set "_-"))
+  user (some (+ i (* "." i)))
+  domain (* (some i) (opt (* "." domain)))
+  
+  main (* (<- user) "@" (<- domain))})
+(define match-email (curry peg/match email-peg))
+
+(assert-eq (match-email "user@example.com") '("user" "example.com"))
+(assert-eq (match-email "not-an-email.com") false)
+(assert-eq (match-email "@this-is@mastodon.social") false)
