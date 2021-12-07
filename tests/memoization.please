@@ -7,17 +7,16 @@
     [1 1]
     [n (+ (fibonacci (- n 1)) (fibonacci (- n 2)))]))
 
-; Irritatingly i can't see how to get around this self-reference
-(define fibonacci/memo (memoize (\ (n)
+(define fibonacci/memo (memoize-loop loop (n)
   (match n
-      [0 0]
-      [1 1]
-      [n (+ (fibonacci/memo (- n 1)) (fibonacci/memo (- n 2)))]))))
+    [0 0]
+    [1 1]
+    [n (+ (loop (- n 1)) (loop (- n 2)))])))
 
 (define n 20)
 (let (
-  [(fibs . profile) (profiling/get-stats (for fibonacci (range (++ n))))]
-  [(fibs/memo . profile/memo) (profiling/get-stats (for fibonacci/memo (range (++ n))))]
+  [(fibs . profile) (profiling/get-stats (fibonacci n))]
+  [(fibs/memo . profile/memo) (profiling/get-stats (fibonacci/memo n))]
   [time (second (profiling/data/summarize profile))]
   [time/memo (second (profiling/data/summarize profile/memo))])
   (assert-eq fibs fibs/memo)
