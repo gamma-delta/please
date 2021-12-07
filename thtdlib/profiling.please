@@ -33,7 +33,7 @@
 ; Return (total-count total-time)
 (defun profiling/data/summarize (stats)
   (fold 
-    (\ ((count time) (_ c t))
+    (\ ((count time) (_ (c t)))
       (list (+ count c) (+ time t)))
     '(0 0)
     (map->list stats)))

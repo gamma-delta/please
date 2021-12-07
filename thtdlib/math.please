@@ -15,7 +15,7 @@
 (defun bool->number (x) (if x 1 0))
 
 (defun derivative (respect-to expr)
-  (clean-math-expr (let loop ([expr expr])
+  (let loop ([expr expr])
     (cond 
       [(number? expr) 0.0]
       [(equal? respect-to expr) 1.0]
@@ -49,7 +49,7 @@
             `(* ,(second body) (** ,respect-to ,(-- (second body))))
             (! 'derivative/bad-pow "power must be of the form (** x constant)" expr))]
           (! 'derivative/bad-op (curry string "cannot take the derivative of ") op)))]
-      (! 'derivative/bad-type (curry string "cannot take derivative of ") expr)))))
+      (! 'derivative/bad-type (curry string "cannot take derivative of ") expr))))
 
 (defun derivative/lambda (fn) (let (
   [opened (open-procedure fn)]

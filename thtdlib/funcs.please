@@ -68,3 +68,22 @@
       (let1 [answer (apply fn args)]
         (transient/replace! memo (map/insert! memo args answer))
         answer))))
+
+; aaaAAAaa
+; https://matt.might.net/articles/implementation-of-recursive-fixed-point-y-combinator-in-javascript-for-memoization/
+; https://mvanier.livejournal.com/2897.html
+;
+; i'm not going to pretend i know how or why this works
+(defun Ymemo (f)
+  (let Y ([f f] [cache (transient/new (map/new))])
+    (lambda args
+      (if (map/contains? cache args)
+        (map/get cache args)
+        (let1 [answer (apply
+            (f (lambda (n) ((Y f cache) n)))
+            args)]
+          (transient/replace! cache (map/insert! cache args answer))
+          answer)))))
+(define-macro memoize-loop (label args body . bodies)
+  `(Ymemo (lambda (,label)
+    (lambda ,args ,body ,@bodies))))

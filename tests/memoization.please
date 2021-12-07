@@ -7,13 +7,21 @@
     [1 1]
     [n (+ (fibonacci (- n 1)) (fibonacci (- n 2)))]))
 
-(define fibonacci/memo (memoize fibonacci))
+; Irritatingly i can't see how to get around this self-reference
+(define fibonacci/memo (memoize (\ (n)
+  (match n
+      [0 0]
+      [1 1]
+      [n (+ (fibonacci/memo (- n 1)) (fibonacci/memo (- n 2)))]))))
 
+(define n 20)
 (let (
-  [(F_20 . profile) (profiling/get-stats (for fibonacci (range 21)))]
-  [(F_20/memo . profile/memo) (profiling/get-stats (for fibonacci/memo (range 21)))]
+  [(fibs . profile) (profiling/get-stats (for fibonacci (range (++ n))))]
+  [(fibs/memo . profile/memo) (profiling/get-stats (for fibonacci/memo (range (++ n))))]
   [time (second (profiling/data/summarize profile))]
   [time/memo (second (profiling/data/summarize profile/memo))])
-  (assert-eq (last F_20) 6765)
-  (assert-eq F_20 F_20/memo)
-  (assert (< time/memo time)))
+  (assert-eq fibs fibs/memo)
+  (print "Memoized function is " 
+    (number->rounded-string (- (/ time time/memo 0.01) 100) 0)
+    "% faster")
+  (assert (<= time/memo time)))
