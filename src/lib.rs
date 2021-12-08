@@ -13,6 +13,7 @@ use eval::TailRec;
 use itertools::Itertools;
 
 use std::{
+    borrow::Borrow,
     cmp::{Eq, PartialEq},
     collections::HashMap,
     fmt::{self, Write},
@@ -370,12 +371,16 @@ impl Engine {
     /// As a helper, if `userdata` is None, the userdata becomes `()`.
     ///
     /// This is given a trace of `[]` to start; `eval_inner` pushes sources to it as needed.
-    pub fn make_err(&mut self, name: &str, msg: String, userdata: Option<Gc<Expr>>) -> Exception {
-        let sym = self.intern_symbol(name);
+    pub fn make_err<S1, S2>(&mut self, name: S1, msg: S2, userdata: Option<Gc<Expr>>) -> Exception
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+    {
+        let sym = self.intern_symbol(name.as_ref());
 
         Exception {
             id: sym,
-            info: msg,
+            info: msg.as_ref().to_string(),
             data: userdata.unwrap_or_else(|| Gc::new(Expr::Nil)),
             call_trace: EvalSource { trace: Vec::new() },
         }
@@ -416,7 +421,7 @@ impl Namespace {
         self.mappings.get(&symbol).cloned().or_else(|| {
             self.parent
                 .as_ref()
-                .and_then(|parent| parent.borrow().lookup(symbol))
+                .and_then(|parent| parent.as_ref().borrow().lookup(symbol))
         })
     }
 

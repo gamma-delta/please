@@ -59,7 +59,11 @@ impl Engine {
                     write!(w, "()")
                 }
                 Expr::String(s) => {
-                    write!(w, "{:?}", String::from_utf8_lossy(s))
+                    write!(w, "\"")?;
+                    for escaped in s.iter().flat_map(|b| std::ascii::escape_default(*b)) {
+                        write!(w, "{}", escaped as char)?;
+                    }
+                    write!(w, "\"")
                 }
                 Expr::SpecialForm { name, .. } => {
                     if let Some(name) = engine.get_symbol_str(*name) {

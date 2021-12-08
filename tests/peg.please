@@ -5,10 +5,25 @@
   i (+ w (set "_-"))
   user (some (+ i (* "." i)))
   domain (* (some i) (opt (* "." domain)))
-  
-  main (* (<- user) "@" (<- domain))})
-(define match-email (curry peg/match email-peg))
+  email (* (<- user) "@" (<- domain))
+  main (* (group email) (? (* nl main)))
+  })
+(define email/compiled (peg/compile email-peg))
+(define match-email (curry peg/match email/compiled))
+(define match-email/naive (curry peg/match/naive email-peg))
 
-(assert-eq (match-email "user@example.com") '("user" "example.com"))
+(assert-eq (match-email "user@example.com") '(("user" "example.com")))
+(assert-eq (match-email "me@gmail.com\nother@other.com") '(("me" "gmail.com") ("other" "other.com")))
 (assert-eq (match-email "not-an-email.com") false)
 (assert-eq (match-email "@this-is@mastodon.social") false)
+
+
+(let (
+  [(_ . profile/naive) (profiling/get-stats (match-email/naive texts/emails))]
+  [(_ . profile) (profiling/get-stats (match-email texts/emails))]
+  [time/naive (second (profiling/data/summarize profile/naive))]
+  [time (second (profiling/data/summarize profile))])
+  (print "Compiled PEG is " 
+    (number->rounded-string (- (/ time/naive time 0.01) 100) 0)
+    "% faster")
+  (assert (<= time time/naive)))

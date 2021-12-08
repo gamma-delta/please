@@ -259,11 +259,26 @@ pub fn string_chars(
         Expr::String(s) => s,
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
     };
-    let lines = s
+    let chars = s
         .iter()
         .map(|s| Gc::new(Expr::String(vec![*s])))
         .collect_vec();
-    Ok(Engine::list_to_sexp(&lines))
+    Ok(Engine::list_to_sexp(&chars))
+}
+
+pub fn string_bytes(
+    engine: &mut Engine,
+    _: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+
+    let s = match &*args[0] {
+        Expr::String(s) => s,
+        _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
+    };
+    let bytes = s.iter().map(|s| Expr::integer(*s as _)).collect_vec();
+    Ok(Engine::list_to_sexp(&bytes))
 }
 
 pub fn prn(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {

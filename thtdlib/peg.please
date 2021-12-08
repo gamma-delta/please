@@ -19,4 +19,14 @@
   w* (any w)
   s* (any s)
   h* (any h)
+
+  nl (* (? (+ "\r" "\n")))
 })
+
+(defun peg/match (peg str [default start 0] [default debug false])
+  (if (peg? peg)
+    (peg/match-inner peg str start debug)
+    (peg/match-inner (peg/compile peg) str start debug)))
+
+(defun peg? (x)
+  (and (list? x) (>= (list/len x) 2) (equal? 'peg (first x)) (string? (second x))))

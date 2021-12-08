@@ -1,0 +1,166 @@
+; Reference texts for testing performance, mostly.
+
+(define texts/lorem (string 
+  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. "
+  "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. "
+  "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. "
+  "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."))
+
+(define texts/addresses <<EOF
+989 Rosewood Street
+Zanesville, OH 43701
+216 Oak Drive
+Cary, NC 27511
+164 Vale Court
+New Philadelphia, OH 44663
+7034 Cherry Rd.
+Los Angeles, CA 90008
+3 Catherine Dr.
+Freeport, NY 11520
+648 Miller St.
+Bangor, ME 04401
+9882 Harvey Ave.
+Mahopac, NY 10541
+569 Valley View Street
+Niceville, FL 32578
+35 Delaware Drive
+Nashville, TN 37205
+8709 Old Valley View Street
+Beachwood, OH 44122
+122 Edgemont Ave.
+Jamaica, NY 11432
+855 East South Drive
+Fond Du Lac, WI 54935
+629 South Amerige Ave.
+Colorado Springs, CO 80911
+7850 Bear Hill St.
+Bismarck, ND 58501
+8 Greystone Lane
+Indianapolis, IN 46201
+960 East Redwood Circle
+Mishawaka, IN 46544
+9232 Nichols Street
+Dalton, GA 30721
+517 Brewery St.
+New City, NY 10956
+288 South Tailwater St.
+Glenview, IL 60025
+434 Studebaker Lane
+Peoria, IL 61604
+79 Penn Ave.
+Nashua, NH 03060
+8680 Thatcher Ave.
+Palm Coast, FL 32137
+9288 Evergreen Ave.
+Erlanger, KY 41018
+323 North Lake View Drive
+Marion, NC 28752
+8740 E. Livingston Ave.
+Nottingham, MD 21236
+49 Wrangler Street
+Randolph, MA 02368
+48 Sherman Dr.
+Pearl, MS 39208
+348 Adams Lane
+Terre Haute, IN 47802
+961 Bridgeton St.
+Muskego, WI 53150
+979 Briarwood Street
+Cuyahoga Falls, OH 44221
+8430 Depot St.
+Front Royal, VA 22630
+7081 Big Rock Cove Rd.
+Huntersville, NC 28078
+16 Piper Road
+Ottumwa, IA 52501
+7537 Saxton Road
+Cordova, TN 38016
+38 Branch St.
+Ronkonkoma, NY 11779
+447 Albany Street
+Madison, AL 35758
+7374 S. Temple Street
+Worcester, MA 01604
+8313 Bow Ridge St.
+New Hyde Park, NY 11040
+569 Windsor Street
+Cincinnati, OH 45211
+953 Linda Dr.
+Land O Lakes, FL 34639
+60 South Washington Rd.
+East Lansing, MI 48823
+9719 Stillwater Street
+Port Jefferson Station, NY 11776
+65 Smith Store Drive
+Norfolk, VA 23503
+9152 Old Euclid St.
+Saratoga Springs, NY 12866
+410 South Riverside Ave.
+Lowell, MA 01851
+9806 Parker Street
+Norman, OK 73072
+2 North Plymouth Drive
+Moncks Corner, SC 29461
+8540 S. Brookside St.
+Westerville, OH 43081
+8545 Green St.
+Hollis, NY 11423
+7395 Court St.
+Apt 929
+Maplewood, NJ 07040
+EOF
+)
+
+(define texts/emails <<EOF
+fatelk@yahoo.ca
+sinkou@sbcglobal.net
+wsnyder@live.com
+richard@optonline.net
+jsnover@optonline.net
+gator@yahoo.ca
+kjetilk@gmail.com
+william@msn.com
+shawnce@yahoo.ca
+attwood@yahoo.ca
+crobles@hotmail.com
+suresh@yahoo.ca
+dodong@att.net
+rhavyn@comcast.net
+philb@yahoo.com
+oechslin@yahoo.ca
+mnemonic@me.com
+mcast@gmail.com
+emmanuel@gmail.com
+anicolao@aol.com
+xtang@sbcglobal.net
+bolow@icloud.com
+hillct@optonline.net
+techie@sbcglobal.net
+satishr@outlook.com
+avalon@yahoo.com
+jugalator@yahoo.ca
+nwiger@comcast.net
+skajan@sbcglobal.net
+geekgrl@msn.com
+mnemonic@sbcglobal.net
+kodeman@optonline.net
+wonderkid@att.net
+maneesh@me.com
+mkearl@live.com
+ajlitt@yahoo.ca
+sinclair@optonline.net
+gommix@icloud.com
+thurston@msn.com
+nacho@gmail.com
+parkes@outlook.com
+cremonini@verizon.net
+cgarcia@icloud.com
+kronvold@me.com
+hermes@outlook.com
+dexter@icloud.com
+gamma@yahoo.com
+spadkins@att.net
+oechslin@me.com
+rogerspl@optonline.net
+EOF
+)

@@ -14,6 +14,9 @@
 
 (defun bool->number (x) (if x 1 0))
 
+(defun abs (x) (if (<= 0 x) x (- x)))
+(defun not-zero (x) (if (= 0.0 x) 0.000001 x))
+
 (defun derivative (respect-to expr)
   (let loop ([expr expr])
     (cond 
@@ -84,3 +87,29 @@
         expr))]
     (! 'clean-math-expr/bad-type "cannot clean this type" expr)))
 
+
+(defun derivative/analytic (f [default dx 0.00001])
+  (\ (x) (/ (- (f (+ x dx)) (f x)) dx)))
+
+; Find an x at which y goes to 0
+; thanks SICP
+(defun newtons-method (f x1 [default tolerance 0.00001] [default dx 0.00001] [default max-iters 500])
+  (let loop ([x x1] [iters max-iters])
+    (if (> iters 0)
+      (let (
+        [y (f x)]
+        [y' (/ (- (f (+ x dx)) y) dx)]
+        [next-x (- x (/ y y'))])
+        (print "(" x ", " y ") @ " y')
+        (if (< (abs (- x next-x)) tolerance)
+          x
+          (loop next-x (-- iters))))
+      x)))
+
+; Find a local extreme of a function
+(defun extreme (f x1 [default tolerance 0.00001] [default dx 0.00001] [default max-iters 500])
+  ; Try to intelligently find the derivative if we can or just cop out to the analytic solution otherwise
+  (let1 [f' (with-handlers (
+    [(const true) (const (derivative/analytic f))])
+    (derivative/lambda f))]
+    (newtons-method f' x1 tolerance dx max-iters)))

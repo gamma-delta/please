@@ -58,9 +58,9 @@
   (lazy-cons elt (repeat elt))))
 
 ; Force-eval the first n elements of the lazy list
-(defun reify (n l)
+(defun reify (l n)
   (if (>=0 n)
-    (cons (car l) (reify (sub1 n) (cdr l)))
+    (cons (car l) (reify (cdr l) (-- n)))
     l))
 
 (defun find-map (fn . rows)
@@ -70,3 +70,13 @@
 
 (defun zip (l1 l2) (map list l1 l2))
 (defun enumerate (l) (zip (range) l))
+
+(defun least (l [default less-than? <])
+  (fold (\ (least x) 
+    (if (less-than? x least)
+      x
+      least))
+    (car l) (cdr l)))
+(defun greatest (l [default less-than? <])
+  (least l (\ (x y) (less-than? y x))))
+

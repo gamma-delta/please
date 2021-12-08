@@ -59,6 +59,11 @@
 (defun omit (l n) 
   (let ([split (split-at l n)])
     (append (car split) (cddr split))))
+; Remove the first instance of x in l.
+(defun remove (l x [default equals? equals?])
+  (and l (if (equals? x (car l)) 
+    (cdr l)
+    (cons (car l) (remove (cdr l) x)))))
 
 (defun reverse (l)
   (and l (append (reverse (cdr l)) (list (car l)))))
@@ -131,3 +136,19 @@
 ; Convert a list into a map of indices to values
 ; yes i should have native arrays for this bla bla bla
 (defun list/memoize (l) (apply map/new (flatten (enumerate l))))
+
+(defun list/contains? (l needle [default equals? equals?])
+  (let1 loop [l l]
+    (and l
+      (or (equals? needle (car l)) (loop (cdr l))))))
+
+; is sub a subset of list?
+(defun list/subset? (sub list)
+  (all (curry list/contains? list) sub))
+
+(defun permutations (l)
+  (if (null? l)
+    (list ())
+    (flat-map (\ (x)
+      (map (curry cons x) (permutations (remove l x))))
+      l)))

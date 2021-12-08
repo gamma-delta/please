@@ -17,6 +17,7 @@ itertools = "0.10.1"
 paste = "1.0.5"
 anyhow = "1.0.43"
 hashable = "0.0.0"
+num_enum = "0.5.4"
 
 [profile.dev]
 opt-level = 3

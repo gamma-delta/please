@@ -1,10 +1,16 @@
+//! Old naive implementation for reference.
+
 use std::{borrow::Cow, ops::Deref};
 
 use crate::hash::GcMap;
 
-use super::*;
+use super::super::*;
 
-pub fn peg_match(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+pub fn match_naive(
+    engine: &mut Engine,
+    env: Gc<GcCell<Namespace>>,
+    args: &[Gc<Expr>],
+) -> EvalResult {
     // Tired of adding new args to this
     #[non_exhaustive]
     struct RecurCtx<'map, 'text> {

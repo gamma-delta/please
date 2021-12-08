@@ -114,12 +114,16 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("string/lines", string_lines as _),
         ("string/split", string_split as _),
         ("string/chars", string_chars as _),
+        ("string/bytes", string_bytes as _),
         // formatting
         ("scanf", scanf as _),
         ("read", read as _),
         ("write", write as _),
         ("native-repr", native_repr as _),
-        ("peg/match", peg::peg_match as _),
+        // peg
+        ("peg/compile", peg::compile as _),
+        ("peg/match-inner", peg::match_ as _),
+        ("peg/match/naive", peg::match_naive as _),
         // list/pair
         ("cons", cons as _),
         ("car", car as _),
