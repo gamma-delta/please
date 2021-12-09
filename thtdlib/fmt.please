@@ -1,5 +1,12 @@
 (defun print args
   (discard (prn (apply string args))))
 
-(define-macro debug (arg)
-  `(print (write ',arg) ": " (write ,arg)))
+; thanks winfy
+(defun debug (x) 
+  (if (pair? x) 
+    `(cons ,(debug (car x)) ,(debug (cdr x))) 
+    `(quote ,x)))
+
+; like print but also prints the ALARM CHARACTER WEEWOO
+(defun alert args
+  (apply print "\a" args))

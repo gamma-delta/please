@@ -15,8 +15,8 @@
     ; we're done, give the acc
     acc))
 
-(defun fold1 (fn . lists)
-  (apply fold fn (apply fn (for car lists)) (map cdr lists)))
+(defun fold1 (fn list)
+  (fold fn (car list) (cdr list)))
 
 (defun map (fn . rows)
   (if (all (negate null?) rows)
@@ -72,11 +72,16 @@
 (defun enumerate (l) (zip (range) l))
 
 (defun least (l [default less-than? <])
-  (fold (\ (least x) 
+  (fold1 (\ (least x)
     (if (less-than? x least)
       x
       least))
-    (car l) (cdr l)))
+    l))
 (defun greatest (l [default less-than? <])
   (least l (\ (x y) (less-than? y x))))
+
+(defun least/by-key (l keyer [default less-than? <])
+  (least l (\ (x y) (less-than? (keyer x) (keyer y)))))
+(defun greatest/by-key (l keyer [default less-than? <])
+  (least l (\ (x y) (less-than? (keyer y) (keyer x)))))
 

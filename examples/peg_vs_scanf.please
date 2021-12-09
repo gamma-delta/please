@@ -1,0 +1,22 @@
+(define test-input (apply string (repeat (string texts/emails "\n") 1000)))
+
+(define scanf-fmt "%[^@]@%s")
+(define peg '#{
+  i (+ w (set "_-"))
+  user (some (+ i (* "." i)))
+  domain (* (some i) (opt (* "." domain)))
+  email (* (<- user) "@" (<- domain))
+  main (* (group email) (? (* nl main)))
+})
+
+(print "scanf:")
+(profiling/do (for (\ (line) (scanf line scanf-fmt))
+  (string/lines test-input)))
+(print "\npeg/match:")
+(profiling/do (peg/match peg test-input))
+(print "\nprecompiled peg/match:")
+(define compiled (peg/compile peg))
+(profiling/do (peg/match compiled test-input))
+
+; TL;DR: scanf will be faster than peg, but scanf only works for simple cases.
+

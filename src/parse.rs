@@ -745,6 +745,8 @@ fn escape(s: &str) -> Result<(String, &str), InvalidEscape> {
                 'f' => Ok(("\x0c".to_string(), naive_rest)),
                 // "Vertical Tab"
                 'v' => Ok(("\x0b".to_string(), naive_rest)),
+                // Bell
+                'a' => Ok(("\x07".to_string(), naive_rest)),
 
                 _ => Err(InvalidEscape::BadChar(sentinel)),
             }
