@@ -220,7 +220,7 @@ impl Hash for Expr {
 #[derive(Debug, Clone)]
 pub struct Engine {
     /// Map of all known interned symbols to their handles, and vice versa
-    interned_symbols: BiHashMap<String, Symbol>,
+    interned_symbols: BiHashMap<Vec<u8>, Symbol>,
     /// Number of symbols that have ever been created
     akashic_symbol_count: u64,
 
@@ -279,12 +279,13 @@ impl Engine {
     }
 
     /// Make or get the symbol handle of the symbol represented by the given string.
-    pub fn intern_symbol(&mut self, sym: &str) -> Symbol {
+    pub fn intern_symbol<B: AsRef<[u8]>>(&mut self, sym: B) -> Symbol {
+        let sym = sym.as_ref();
         if let Some(already) = self.interned_symbols.get_by_left(sym) {
             *already
         } else {
             let id = self.akashic_symbol_count;
-            self.interned_symbols.insert(sym.to_string(), id);
+            self.interned_symbols.insert(sym.to_vec(), id);
 
             self.akashic_symbol_count += 1;
             id
@@ -301,13 +302,13 @@ impl Engine {
     }
 
     /// Get the ID of the already-existing symbol with the given name.
-    pub fn find_symbol(&self, sym: &str) -> Option<Symbol> {
-        self.interned_symbols.get_by_left(sym).copied()
+    pub fn find_symbol<B: AsRef<[u8]>>(&self, sym: B) -> Option<Symbol> {
+        self.interned_symbols.get_by_left(sym.as_ref()).copied()
     }
 
-    pub fn get_symbol_str(&self, symbol_id: Symbol) -> Option<&str> {
+    pub fn get_symbol_str(&self, symbol_id: Symbol) -> Option<&[u8]> {
         if let Some(sym) = self.interned_symbols.get_by_right(&symbol_id) {
-            Some(sym.as_str())
+            Some(sym.as_slice())
         } else {
             None
         }
