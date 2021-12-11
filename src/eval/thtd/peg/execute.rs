@@ -249,14 +249,6 @@ impl<'code> Executor<'code, '_> {
                 }
                 unreachable!()
             }
-            Opcode::Opt => {
-                let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                match self.match_(ruleptr, full_text, text_cursor)? {
-                    Some(it) => Some(it),
-                    // and if we failed that's also OK
-                    None => Some((0, vec![])),
-                }
-            }
             Opcode::Capture => {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
                 match self.match_(ruleptr, full_text, text_cursor) {
@@ -271,6 +263,7 @@ impl<'code> Executor<'code, '_> {
             Opcode::Replace => {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
                 let replacer = self.read_expr(&mut bytecode_cursor)?.to_owned();
+
                 let matched = self.match_(ruleptr, full_text, text_cursor)?;
                 match matched {
                     Some((len, stack)) => {

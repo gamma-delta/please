@@ -516,6 +516,9 @@ impl Builder<'_, '_> {
                         Some(tail),
                     ));
                 };
+
+                let replacer = self.engine.eval_inner(self.env.to_owned(), replacer)?;
+
                 self.reserve(OPCODE_SIZE + RULEPTR_SIZE + EXPR_SIZE);
                 self.write_opcode(cursor, Opcode::Replace);
                 self.write_ruleptr(cursor, subpeg)?;
