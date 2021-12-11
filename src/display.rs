@@ -1,5 +1,7 @@
 //! Print and write exprs.
 
+use std::fmt::{Debug, Display};
+
 use super::*;
 
 impl Engine {
@@ -17,7 +19,7 @@ impl Engine {
                 Expr::Float(f) => write!(w, "{:?}", f),
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {
-                        write!(w, "{}", s)
+                        write!(w, "{}", BstrFmt(s))
                     } else {
                         write!(w, "<unknown #{}>", sym)
                     }
@@ -59,22 +61,18 @@ impl Engine {
                     write!(w, "()")
                 }
                 Expr::String(s) => {
-                    write!(w, "\"")?;
-                    for escaped in s.iter().flat_map(|b| std::ascii::escape_default(*b)) {
-                        write!(w, "{}", escaped as char)?;
-                    }
-                    write!(w, "\"")
+                    write!(w, "{:?}", BstrFmt(s))
                 }
                 Expr::SpecialForm { name, .. } => {
                     if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<special form {}>", name)
+                        write!(w, "<special form {}>", BstrFmt(name))
                     } else {
                         write!(w, "<anonymous special form>")
                     }
                 }
                 Expr::NativeProcedure { name, .. } => {
                     if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<native proc {}>", name)
+                        write!(w, "<native proc {}>", BstrFmt(name))
                     } else {
                         write!(w, "<anonymous native proc>")
                     }
@@ -145,14 +143,14 @@ impl Engine {
                 Expr::Integer(i) => write!(w, "{}", i),
                 Expr::Float(f) => write!(w, "{:?}", f),
                 Expr::String(s) => {
-                    write!(w, "{}", String::from_utf8_lossy(s))
+                    write!(w, "{}", BstrFmt(s))
                 }
                 Expr::Bool(b) => {
                     write!(w, "{}", b)
                 }
                 Expr::Symbol(sym) => {
                     if let Some(s) = engine.get_symbol_str(*sym) {
-                        write!(w, "{}", s)
+                        write!(w, "{}", BstrFmt(s))
                     } else {
                         write!(w, "<unknown #{}>", sym)
                     }
@@ -192,14 +190,14 @@ impl Engine {
                 }
                 Expr::SpecialForm { name, .. } => {
                     if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<native func {}>", name)
+                        write!(w, "<native func {}>", BstrFmt(name))
                     } else {
                         write!(w, "<anonymous native func>")
                     }
                 }
                 Expr::NativeProcedure { name, .. } => {
                     if let Some(name) = engine.get_symbol_str(*name) {
-                        write!(w, "<native proc {}>", name)
+                        write!(w, "<native proc {}>", BstrFmt(name))
                     } else {
                         write!(w, "<anonymous native proc>")
                     }
@@ -236,5 +234,42 @@ impl Engine {
         let mut writer = String::new();
         recur(self, &mut writer, expr).unwrap();
         Ok(writer)
+    }
+}
+
+pub struct BstrFmt<B: AsRef<[u8]>>(pub B);
+
+impl<B: AsRef<[u8]>> Display for BstrFmt<B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for &b in self.0.as_ref() {
+            match b {
+                0x20..=0x7e => f.write_char(b as char)?,
+                // pad it to a length of 2 with 0s if need be
+                ono => write!(f, "\\x{:02X}", ono)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<B: AsRef<[u8]>> Debug for BstrFmt<B> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\"")?;
+        for &b in self.0.as_ref() {
+            match b {
+                b'\t' => write!(f, "\\t")?,
+                b'\r' => write!(f, "\\r")?,
+                b'\n' => write!(f, "\\n")?,
+                b'\"' => write!(f, "\\\"")?,
+                b'\x0b' => write!(f, "\\f")?,
+                b'\x0c' => write!(f, "\\v")?,
+                b'\x07' => write!(f, "\\a")?,
+                b'\0' => write!(f, "\\0")?,
+                0x20..=0x7e => f.write_char(b as char)?,
+                // pad it to a length of 2 with 0s if need be
+                ono => write!(f, "\\x{:02X}", ono)?,
+            }
+        }
+        write!(f, "\"")
     }
 }

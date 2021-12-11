@@ -14,11 +14,8 @@ pub fn symbol2string(
     } else {
         return Err(bad_arg_type(engine, arg, 0, "symbol"));
     };
-    let string = engine
-        .get_symbol_str(sym)
-        .unwrap_or("<unknown>")
-        .to_string();
-    Ok(Gc::new(Expr::String(string.into_bytes())))
+    let string = engine.get_symbol_str(sym).unwrap_or(b"<unknown>");
+    Ok(Gc::new(Expr::String(string.to_vec())))
 }
 
 pub fn string2symbol(
@@ -34,7 +31,7 @@ pub fn string2symbol(
     } else {
         return Err(bad_arg_type(engine, arg, 0, "string"));
     };
-    let sym = engine.intern_symbol(&String::from_utf8_lossy(string));
+    let sym = engine.intern_symbol(string);
 
     Ok(Gc::new(Expr::Symbol(sym)))
 }

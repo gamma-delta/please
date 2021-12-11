@@ -1,11 +1,9 @@
 (defun print args
   (discard (prn (apply string args))))
 
-; thanks winfy
-(defun debug (x) 
-  (if (pair? x) 
-    `(cons ,(debug (car x)) ,(debug (cdr x))) 
-    `(quote ,x)))
+; doesn't work
+(define-macro debug (x)
+    `(print ',x ": " (apply list ,x)))
 
 ; like print but also prints the ALARM CHARACTER WEEWOO
 (defun alert args

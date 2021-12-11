@@ -123,7 +123,6 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         // peg
         ("peg/compile", peg::compile as _),
         ("peg/match-inner", peg::match_ as _),
-        ("peg/match/naive", peg::match_naive as _),
         // list/pair
         ("cons", cons as _),
         ("car", car as _),

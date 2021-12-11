@@ -8,6 +8,7 @@ use super::{
     U_SIZE,
 };
 use crate::{
+    display::BstrFmt,
     eval::thtd::{check_argc, peg::compression},
     hash::GcMap,
     Engine, EvalResult, Exception, Expr, Namespace,
@@ -212,7 +213,7 @@ impl Builder<'_, '_> {
                         "peg/compile/no-lookup",
                         format!(
                             "could not find a PEG associated with '{}",
-                            self.engine.get_symbol_str(*sym).unwrap()
+                            BstrFmt(self.engine.get_symbol_str(*sym).unwrap())
                         ),
                         Some(peg),
                     ));
@@ -235,16 +236,16 @@ impl Builder<'_, '_> {
     fn write_rule_from_opcode_and_body(
         &mut self,
         cursor: &mut usize,
-        op: &str,
+        op: &[u8],
         body: Vec<Gc<Expr>>,
         tail: Gc<Expr>,
     ) -> Result<(), Exception> {
         match op {
             // Things taking 0 arguments
-            "position" | "$" => {
+            b"position" | b"$" => {
                 let opc = match op {
-                    "position" | "$" => Opcode::Position,
-                    ono => panic!("i forgor to impl {}", ono),
+                    b"position" | b"$" => Opcode::Position,
+                    ono => panic!("i forgor to impl {}", BstrFmt(ono)),
                 };
                 if !body.is_empty() {
                     return Err(self.engine.make_err(
@@ -258,25 +259,25 @@ impl Builder<'_, '_> {
                 self.write_opcode(cursor, opc);
             }
             // Things taking 1 subpeg argument
-            "any" | "some" | "opt" | "?" | "capture" | "<-" | "quote" | "group" | "not" | "!"
-            | "all" | "do" => {
+            b"any" | b"some" | b"opt" | b"?" | b"capture" | b"<-" | b"quote" | b"group"
+            | b"not" | b"!" | b"all" | b"do" => {
                 let (opc, real_name) = match op {
-                    "any" => (Opcode::Any, "any"),
-                    "some" => (Opcode::Some, "some"),
-                    "opt" | "?" => (Opcode::Opt, "opt"),
-                    "capture" | "<-" | "quote" => (Opcode::Capture, "capture"),
-                    "group" => (Opcode::Group, "group"),
-                    "not" | "!" => (Opcode::Not, "not"),
-                    "all" => (Opcode::All, "all"),
-                    "do" => (Opcode::Jump, "do"),
-                    ono => panic!("i forgor to impl {}", ono),
+                    b"any" => (Opcode::Any, b"any".as_ref()),
+                    b"some" => (Opcode::Some, b"some".as_ref()),
+                    b"opt" | b"?" => (Opcode::Opt, b"opt".as_ref()),
+                    b"capture" | b"<-" | b"quote" => (Opcode::Capture, b"capture".as_ref()),
+                    b"group" => (Opcode::Group, b"group".as_ref()),
+                    b"not" | b"!" => (Opcode::Not, b"not".as_ref()),
+                    b"all" => (Opcode::All, b"all".as_ref()),
+                    b"do" => (Opcode::Jump, b"do".as_ref()),
+                    ono => panic!("i forgor to impl {}", BstrFmt(ono)),
                 };
                 let subpeg = if let [subpeg] = body.as_slice() {
                     subpeg.to_owned()
                 } else {
                     return Err(self.engine.make_err(
-                        &format!("peg/compile/{}/argc", real_name),
-                        format!("{} requires 1 peg argument", real_name),
+                        &format!("peg/compile/{}/argc", BstrFmt(real_name)),
+                        format!("{} requires 1 peg argument", BstrFmt(real_name)),
                         Some(tail),
                     ));
                 };
@@ -286,19 +287,19 @@ impl Builder<'_, '_> {
                 self.write_ruleptr(cursor, subpeg)?;
             }
             // Things taking 2 subpeg arguments
-            "if" | "if-not" => {
+            b"if" | b"if-not" => {
                 let opc = match op {
-                    "if" => Opcode::If,
-                    "if-not" => Opcode::IfNot,
-                    ono => panic!("i forgor to impl {}", ono),
+                    b"if" => Opcode::If,
+                    b"if-not" => Opcode::IfNot,
+                    ono => panic!("i forgor to impl {}", BstrFmt(ono)),
                 };
 
                 let (speg1, speg2) = if let [speg1, speg2] = body.as_slice() {
                     (speg1.to_owned(), speg2.to_owned())
                 } else {
                     return Err(self.engine.make_err(
-                        &format!("peg/compile/{}/argc", &op),
-                        format!("{} requires 2 peg arguments", &op),
+                        &format!("peg/compile/{}/argc", BstrFmt(op)),
+                        format!("{} requires 2 peg arguments", BstrFmt(op)),
                         Some(tail),
                     ));
                 };
@@ -310,7 +311,7 @@ impl Builder<'_, '_> {
             }
 
             // Other Stuff
-            "range" => {
+            b"range" => {
                 // Concat everything.
                 // (range "AZ" "az") -> "AZaz"
                 let mut concated = Vec::with_capacity(body.len() * 2);
@@ -339,7 +340,7 @@ impl Builder<'_, '_> {
                 self.write_opcode(cursor, Opcode::Range);
                 self.write_str(cursor, &concated)?;
             }
-            "set" => {
+            b"set" => {
                 let set = if let [set] = body.as_slice() {
                     set
                 } else {
@@ -380,7 +381,7 @@ impl Builder<'_, '_> {
                 self.write_str(cursor, &arg)?
             }
 
-            "choice" | "+" | "sequence" | "*" => {
+            b"choice" | b"+" | b"sequence" | b"*" => {
                 let count = body.len();
                 let count_b: BYTE = if let Ok(b) = count.try_into() {
                     b
@@ -392,7 +393,7 @@ impl Builder<'_, '_> {
                     ));
                 };
 
-                let opc = if op == "choice" || op == "+" {
+                let opc = if op == b"choice" || op == b"+" {
                     Opcode::Choice
                 } else {
                     Opcode::Sequence
@@ -406,13 +407,13 @@ impl Builder<'_, '_> {
                 }
             }
 
-            "at-least" | "at-most" | "count" => {
+            b"at-least" | b"at-most" | b"count" => {
                 let (n, subpeg) = if let [n, subpeg] = body.as_slice() {
                     (n, subpeg.to_owned())
                 } else {
                     return Err(self.engine.make_err(
-                        &format!("peg/compile/{}/argc", op),
-                        format!("{} requires one int and one peg argument", op),
+                        &format!("peg/compile/{}/argc", BstrFmt(op)),
+                        format!("{} requires one int and one peg argument", BstrFmt(op)),
                         Some(tail),
                     ));
                 };
@@ -422,26 +423,26 @@ impl Builder<'_, '_> {
                             x
                         } else {
                             return Err(self.engine.make_err(
-                                &format!("peg/compile/{}/negative", op),
-                                format!("{} requires positive int arguments", op),
+                                &format!("peg/compile/{}/negative", BstrFmt(op)),
+                                format!("{} requires positive int arguments", BstrFmt(op)),
                                 Some(n.clone()),
                             ));
                         }
                     }
                     _ => {
                         return Err(self.engine.make_err(
-                            &format!("peg/compile/{}/argc", op),
-                            format!("{} requires one int and one peg argument", op),
+                            &format!("peg/compile/{}/argc", BstrFmt(op)),
+                            format!("{} requires one int and one peg argument", BstrFmt(op)),
                             Some(tail),
                         ))
                     }
                 };
 
                 let opc = match op {
-                    "at-least" => Opcode::AtLeast,
-                    "at-most" => Opcode::AtMost,
-                    "count" => Opcode::Count,
-                    ono => panic!("i forgor to impl {}", ono),
+                    b"at-least" => Opcode::AtLeast,
+                    b"at-most" => Opcode::AtMost,
+                    b"count" => Opcode::Count,
+                    ono => panic!("i forgor to impl {}", BstrFmt(ono)),
                 };
 
                 self.reserve(OPCODE_SIZE + RULEPTR_SIZE + U_SIZE);
@@ -449,7 +450,7 @@ impl Builder<'_, '_> {
                 self.write_ruleptr(cursor, subpeg)?;
                 self.write_i64(cursor, n)?;
             }
-            "between" => {
+            b"between" => {
                 let (min, max, subpeg) = if let [min, max, subpeg] = body.as_slice() {
                     (min, max, subpeg.to_owned())
                 } else {
@@ -506,7 +507,7 @@ impl Builder<'_, '_> {
                 self.write_i64(cursor, min)?;
                 self.write_i64(cursor, max)?;
             }
-            "replace" | "/" => {
+            b"replace" | b"/" => {
                 let (subpeg, replacer) = if let [subpeg, subst] = body.as_slice() {
                     (subpeg.to_owned(), subst.to_owned())
                 } else {
@@ -528,8 +529,8 @@ impl Builder<'_, '_> {
             _ => {
                 return Err(self.engine.make_err(
                     "peg/compile/bad-op",
-                    format!("did not recognize the operator '{}", op),
-                    Some(Gc::new(Expr::String(op.as_bytes().to_owned()))),
+                    format!("did not recognize the operator '{}", BstrFmt(op)),
+                    Some(Gc::new(Expr::String(op.to_owned()))),
                 ));
             }
         }
