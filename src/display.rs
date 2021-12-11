@@ -243,8 +243,8 @@ impl<B: AsRef<[u8]>> Display for BstrFmt<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for &b in self.0.as_ref() {
             match b {
-                // Printable characters and bell
-                0x20..=0x7e | 0x7 => f.write_char(b as char)?,
+                // Printable characters, some needed printing chars, and bell
+                0x20..=0x7e | b'\n' | b'\r' | 0x7 => f.write_char(b as char)?,
                 // pad it to a length of 2 with 0s if need be
                 ono => write!(f, "\\x{:02X}", ono)?,
             }
