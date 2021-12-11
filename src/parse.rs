@@ -5,7 +5,7 @@ use gc::Gc;
 use itertools::{Either, Itertools};
 use thiserror::Error;
 
-use crate::{hash::GcMap, Engine, Expr, Symbol};
+use crate::{display::BstrFmt, hash::GcMap, Engine, Expr, Symbol};
 
 /// Error when lexing or parsing an expression
 #[derive(Error)]
@@ -47,7 +47,7 @@ impl ExprParseError {
             ExprParseErrorInfo::IndeterminableToken => {
                 report = report
                     .with_label(Label::new(all).with_message("this is unintelligible"))
-                    .with_note(format!("the problem is {:?}", err.offender));
+                    .with_note(format!("the problem is {:?}", BstrFmt(err.offender)));
             }
             ExprParseErrorInfo::ExpectedCloseParen { opener, closer } => {
                 report = report
@@ -359,8 +359,7 @@ fn try_read_expr<'a>(whole: &'a [u8], state: &mut Engine) -> ReadResult<'a, Opti
     } else if s.starts_with(b";") {
         // line comment
         let rest = if let Some(idx) = s.find(b"\n") {
-            // one byte to skip the line feed
-            &s[idx + 1..]
+            &s[idx..]
         } else {
             // get the end of the string
             s.split_at(s.len()).1
@@ -369,21 +368,14 @@ fn try_read_expr<'a>(whole: &'a [u8], state: &mut Engine) -> ReadResult<'a, Opti
     }
 
     if let Some(quote) = try_read_prefix_family(s, state) {
-        let ((quotefunc, quoted, outside), rest) = quote?;
+        let ((quotefunc, quoted), rest) = quote?;
 
-        let quote = state.intern_symbol(quotefunc);
-        let quote_idx = Gc::new(Expr::Symbol(quote));
-        let quoted_idx = Gc::new(quoted);
-        let altogether = if outside {
-            // (quote . (expr . nil))
-            let null_idx = Gc::new(Expr::Nil);
-            let quoted_pair = Gc::new(Expr::Pair(quoted_idx, null_idx));
-            Expr::Pair(quote_idx, quoted_pair)
-        } else {
-            // (quote . expr)
-            Expr::Pair(quote_idx, quoted_idx)
-        };
-        Ok((Some(altogether), rest))
+        let quotesym = state.intern_symbol(quotefunc);
+        let quote = Gc::new(Expr::Symbol(quotesym));
+        let quoted = Gc::new(quoted);
+
+        let list = Expr::Pair(quote, Expr::pair(quoted, Expr::nil()));
+        Ok((Some(list), rest))
     } else if let Some(b) = try_read_bool(s, state) {
         let (b, rest) = b?;
         Ok((Some(Expr::Bool(b)), rest))
@@ -395,7 +387,7 @@ fn try_read_expr<'a>(whole: &'a [u8], state: &mut Engine) -> ReadResult<'a, Opti
         Ok((Some(Expr::Float(float)), rest))
     } else if let Some(string) = try_read_string(s, state) {
         let (string, rest) = string?;
-        Ok((Some(Expr::String(string.into_bytes())), rest))
+        Ok((Some(Expr::String(string)), rest))
     } else if let Some(ur_mom) = try_read_sexpr(s, state) {
         let (sexhaha, rest) = ur_mom?;
         Ok((Some(sexhaha), rest))
@@ -429,7 +421,7 @@ fn try_read_float<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadResult<'a,
     if s.starts_by(|b| b.is_ascii_digit() || b"+-.".contains(&b)) {
         let f = (|| {
             let stred = std::str::from_utf8(s).ok()?;
-            let f = s.parse::<f64>().ok()?;
+            let f = stred.parse::<f64>().ok()?;
             Some(f)
         })();
         f.map(|f| Ok((f, rest)))
@@ -474,7 +466,7 @@ fn try_read_int<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadResult<'a, i
         };
 
         let stred = std::str::from_utf8(s).ok()?;
-        match i64::from_str_radix(s, radix) {
+        match i64::from_str_radix(stred, radix) {
             Ok(num) => Some(Ok((num, rest))),
             Err(ono) => {
                 if whole.starts_by(|b| b == b'-' || b == b'+') {
@@ -485,7 +477,7 @@ fn try_read_int<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadResult<'a, i
                     Some(Err(ExprParseErrorLimited {
                         data: ExprParseErrorInfo::ParseInt {
                             radix,
-                            radix_prefix: prefix.map(|s| s.to_owned()),
+                            radix_prefix: prefix.map(|s| String::from_utf8_lossy(s).into_owned()),
                             source: ono,
                         },
                         offender: whole,
@@ -536,16 +528,16 @@ fn try_read_sexpr<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a, 
     ) -> Result<(Expr, &'b [u8]), ExprParseErrorLimited<'b>> {
         let s = s.trim_start();
 
-        if let Some(rest) = s.strip_prefix(&closer) {
+        if let Some(rest) = s.strip_prefix(&[closer]) {
             // we can finally rest
             Ok((Expr::Nil, rest))
         } else if s.starts_by(is_closer) {
             let (start, _) = string_pos(original_rest, s);
             Err(ExprParseErrorLimited {
                 data: ExprParseErrorInfo::WrongCloseParen {
-                    opener,
-                    expected_closer: closer,
-                    got_closer: s[0],
+                    opener: opener as char,
+                    expected_closer: closer as char,
+                    got_closer: s[0] as char,
                 },
                 offender: &original_rest[..=start],
             })
@@ -567,15 +559,15 @@ fn try_read_sexpr<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a, 
                             }
                         };
 
-                        return if let Some(rest) = rest.strip_prefix(&closer) {
+                        return if let Some(rest) = rest.strip_prefix(&[closer]) {
                             let pair = Expr::Pair(Gc::new(car), Gc::new(cdr));
                             Ok((pair, rest))
-                        } else if let Some(problem) = rest.strip_prefix(is_closer) {
+                        } else if let Some(problem) = rest.strip_prefix_by(is_closer) {
                             Err(ExprParseErrorLimited {
                                 data: ExprParseErrorInfo::WrongCloseParen {
-                                    opener,
-                                    expected_closer: closer,
-                                    got_closer: problem.first().unwrap(),
+                                    opener: opener as char,
+                                    expected_closer: closer as char,
+                                    got_closer: problem[0] as char,
                                 },
                                 offender: &s[..=problem.len()],
                             })
@@ -592,7 +584,10 @@ fn try_read_sexpr<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a, 
                     Ok((pair, rest))
                 }
                 None => Err(ExprParseErrorLimited {
-                    data: ExprParseErrorInfo::ExpectedCloseParen { opener, closer },
+                    data: ExprParseErrorInfo::ExpectedCloseParen {
+                        opener: opener as char,
+                        closer: closer as char,
+                    },
                     offender: original_rest,
                 }),
             }
@@ -601,9 +596,9 @@ fn try_read_sexpr<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a, 
     let (s, rest) = read_until_delim(s);
     // The paren is always put in `rest`, this means we have only WS until a (
     if s.is_empty() {
-        let opener = rest.first()?;
+        let opener = *rest.first()?;
         if let Some(closer) = match_paren(opener) {
-            let s = &rest[opener.len_utf8()..];
+            let s = &rest[1..];
 
             let (list, rest) = match recurse(s, opener, closer, state, rest) {
                 Ok(it) => it,
@@ -630,10 +625,10 @@ fn is_closer(b: u8) -> bool {
     b == b')' || b == b']' || b == b'}'
 }
 
-fn try_read_string<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a, String>> {
+fn try_read_string<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a, Vec<u8>>> {
     let whole = s.trim_start();
     if let Some(rest) = whole.strip_prefix(b"<<") {
-        let newline_pos = match rest.find(b'\n') {
+        let newline_pos = match rest.find(b"\n") {
             Some(it) => it,
             None => {
                 return Some(Err(ExprParseErrorLimited {
@@ -651,32 +646,34 @@ fn try_read_string<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a,
         }
         // now find it with the newline to force it to be
         // alone on the line
-        let here_ender = format!("\n{}\n", here_starter);
+        let here_ender = [b"\n", here_starter, b"\n"].concat();
         let herestring_end = match rest[1..].find(&here_ender) {
             Some(it) => it,
             None => {
                 return Some(Err(ExprParseErrorLimited {
-                    data: ExprParseErrorInfo::HerestringNoEnding(here_starter.to_owned()),
+                    data: ExprParseErrorInfo::HerestringNoEnding(
+                        String::from_utf8_lossy(here_starter).into_owned(),
+                    ),
                     offender: here_starter,
                 }))
             }
         };
         let (herestring, rest) = rest[1..].split_at(herestring_end);
-        Some(Ok((String::from(herestring), &rest[here_ender.len()..])))
+        Some(Ok((herestring.to_vec(), &rest[here_ender.len()..])))
     } else {
         try_read_normal_string(s, state)
     }
 }
 
-fn try_read_normal_string<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadResult<'a, String>> {
+fn try_read_normal_string<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadResult<'a, Vec<u8>>> {
     let whole = s.trim_start();
-    if let Some(mut s) = whole.strip_prefix('"') {
+    if let Some(mut s) = whole.strip_prefix(b"\"") {
         // doesn't make sure \ is before "
         // see which index is first, use Either to figure which to consume to.
-        let mut accumulated = String::new();
+        let mut accumulated = Vec::new();
         loop {
-            let bs_pos = s.find('\\');
-            let quote_pos = s.find('"');
+            let bs_pos = s.find(b"\\");
+            let quote_pos = s.find(b"\"");
             // See which index is first
             // Left = backslash, Right = quote
             let point_of_interest = match (bs_pos, quote_pos) {
@@ -695,7 +692,7 @@ fn try_read_normal_string<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadRe
                 // There's no quote left so bail!
                 _ => {
                     // fix bug with ariadne
-                    let remove_newline = if let Some(idx) = whole.find(&['\n', '\r'][..]) {
+                    let remove_newline = if let Some(idx) = whole.find(b"\r\n") {
                         &whole[..idx]
                     } else {
                         whole
@@ -721,12 +718,12 @@ fn try_read_normal_string<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadRe
                             }));
                         }
                     };
-                    accumulated.push_str(&s[..esc_pos]);
-                    accumulated.push_str(&esc);
+                    accumulated.extend_from_slice(&s[..esc_pos]);
+                    accumulated.extend_from_slice(&esc);
                     s = rest;
                 }
                 Either::Right(quote_pos) => {
-                    accumulated.push_str(&s[..quote_pos]);
+                    accumulated.extend_from_slice(&s[..quote_pos]);
                     return Some(Ok((accumulated, &s[quote_pos + 1..])));
                 }
             }
@@ -737,28 +734,28 @@ fn try_read_normal_string<'a>(s: &'a [u8], _state: &mut Engine) -> Option<ReadRe
 }
 
 /// Consume an escape sequence with the backslash already gone.
-fn escape(s: &[u8]) -> Result<(String, &[u8]), InvalidEscape> {
+fn escape(s: &[u8]) -> Result<(Vec<u8>, &[u8]), InvalidEscape> {
     match s.first() {
         None => Err(InvalidEscape::Eof),
-        Some(sentinel) => {
+        Some(&sentinel) => {
             // the rest, assuming only 1 char escape
-            let naive_rest = &s[sentinel.len_utf8()..];
+            let naive_rest = &s[1..];
             match sentinel {
-                '\\' => Ok(("\\".to_string(), naive_rest)),
-                '"' => Ok(("\"".to_string(), naive_rest)),
-                '\'' => Ok(("'".to_string(), naive_rest)),
-                'n' => Ok(("\n".to_string(), naive_rest)),
-                'r' => Ok(("\r".to_string(), naive_rest)),
-                't' => Ok(("\t".to_string(), naive_rest)),
-                '0' => Ok(("\0".to_string(), naive_rest)),
+                b'\\' => Ok((b"\\".to_vec(), naive_rest)),
+                b'"' => Ok((b"\"".to_vec(), naive_rest)),
+                b'\'' => Ok((b"'".to_vec(), naive_rest)),
+                b'n' => Ok((b"\n".to_vec(), naive_rest)),
+                b'r' => Ok((b"\r".to_vec(), naive_rest)),
+                b't' => Ok((b"\t".to_vec(), naive_rest)),
+                b'0' => Ok((b"\0".to_vec(), naive_rest)),
                 // "Formfeed Page Break"
-                'f' => Ok(("\x0c".to_string(), naive_rest)),
+                b'f' => Ok((b"\x0c".to_vec(), naive_rest)),
                 // "Vertical Tab"
-                'v' => Ok(("\x0b".to_string(), naive_rest)),
+                b'v' => Ok((b"\x0b".to_vec(), naive_rest)),
                 // Bell
-                'a' => Ok(("\x07".to_string(), naive_rest)),
+                b'a' => Ok((b"\x07".to_vec(), naive_rest)),
 
-                _ => Err(InvalidEscape::BadChar(sentinel)),
+                _ => Err(InvalidEscape::BadChar(sentinel as char)),
             }
         }
     }
@@ -770,12 +767,12 @@ fn escape(s: &[u8]) -> Result<(String, &[u8]), InvalidEscape> {
 fn try_read_prefix_family<'a>(
     whole: &'a [u8],
     state: &mut Engine,
-) -> Option<ReadResult<'a, (&'static str, Expr, bool)>> {
+) -> Option<ReadResult<'a, (&'static [u8], Expr)>> {
     let whole = whole.trim_start();
-    special_prefixes(whole).map(|(quote, rest, outside)| {
+    special_prefixes(whole).map(|(quote, rest)| {
         try_read_expr(rest, state).and_then(|(expr, rest)| {
             if let Some(expr) = expr {
-                Ok(((quote, expr, outside), rest))
+                Ok(((quote, expr), rest))
             } else {
                 Err(ExprParseErrorLimited {
                     data: ExprParseErrorInfo::PrefixNothing,
@@ -787,24 +784,22 @@ fn try_read_prefix_family<'a>(
     })
 }
 
-/// The boolean indicates whether it is `true: (sub (body))` or `false: (sub body)`
-fn special_prefixes<'a>(s: &'a [u8]) -> Option<(&'static str, &'a [u8], bool)> {
+/// Return the name of the form to put inside the parensm and the rest of the string.
+fn special_prefixes<'a>(s: &'a [u8]) -> Option<(&'static [u8], &'a [u8])> {
     [
-        ("'", "quote", true),
-        ("`", "quasiquote", true),
+        (&b"'"[..], &b"quote"[..]),
+        (b"`", b"quasiquote"),
         // put this first so it looks for it first
-        (",@", "unquote-splicing", true),
-        (",", "unquote", true),
+        (b",@", b"unquote-splicing"),
+        (b",", b"unquote"),
     ]
     .iter()
-    .find_map(|(header, quote, outside)| {
-        s.strip_prefix(header).map(|rest| (*quote, rest, *outside))
-    })
+    .find_map(|(header, quote)| s.strip_prefix(*header).map(|rest| (*quote, rest)))
 }
 
 fn try_read_map<'a>(s: &'a [u8], state: &mut Engine) -> Option<ReadResult<'a, GcMap>> {
     let (s, sexp_str) = read_until_delim(s);
-    if s == "#" {
+    if s == b"#" {
         match try_read_sexpr(sexp_str, state) {
             Some(Ok((expr, rest))) => {
                 // safe to unwrap because it's not using any lazy pairs and because it will always be a sexpr
@@ -870,7 +865,7 @@ fn string_pos<'a>(parent: &'a [u8], child: &'a [u8]) -> (usize, usize) {
 
 #[test]
 fn test_string_pos() {
-    let s = "True, nervous, dreadfully nervous I have been, and am.";
+    let s = b"True, nervous, dreadfully nervous I have been, and am.";
 
     let child = &s[3..13];
     let bounds = string_pos(s, child);
@@ -886,14 +881,15 @@ trait BytestrExt {
     fn find_by(&self, searcher: impl FnMut(u8) -> bool) -> Option<usize>;
     fn starts_by(&self, searcher: impl FnMut(u8) -> bool) -> bool;
     fn contains_by(&self, searcher: impl FnMut(u8) -> bool) -> bool;
-    fn strip_prefix_by(&self, searcher: impl FnMut(u8) -> bool) -> Option<&Self>,
+    fn strip_prefix_by(&self, searcher: impl FnMut(u8) -> bool) -> Option<&Self>;
 }
 
 impl BytestrExt for [u8] {
     fn trim_start(&self) -> &Self {
+        // find the first position that is *not* whitespace and cut before it
         let idx = self
             .iter()
-            .position(|b| b" \t\r\n\0\x0b\x0c".contains(b))
+            .position(|b| !b" \t\r\n\0\x0b\x0c".contains(b))
             .unwrap_or_else(|| self.len());
         &self[idx..]
     }
@@ -906,7 +902,7 @@ impl BytestrExt for [u8] {
         self.iter().copied().position(searcher)
     }
 
-    fn starts_by(&self, searcher: impl FnMut(u8) -> bool) -> bool {
+    fn starts_by(&self, mut searcher: impl FnMut(u8) -> bool) -> bool {
         match self.first() {
             Some(b) => searcher(*b),
             None => false,

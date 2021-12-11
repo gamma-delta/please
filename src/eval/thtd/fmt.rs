@@ -169,11 +169,7 @@ pub fn read(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) ->
         _ => return Err(bad_arg_type(engine, args[0].to_owned(), 0, "string")),
     };
 
-    let res = match crate::parse::read_many(
-        String::from_utf8_lossy(s).as_ref(),
-        "<read>".to_owned(),
-        engine,
-    ) {
+    let res = match crate::parse::read_many(s, "<read>".to_owned(), engine) {
         Ok(it) => it.into_iter().map(Gc::new).collect_vec(),
         Err(ono) => return Err(engine.make_err("read/syntax", ono.to_string(), None)),
     };

@@ -254,13 +254,21 @@ impl Engine {
     }
 
     /// Reads the source and return one token from it.
-    pub fn read_one(&mut self, s: &str, source_name: String) -> Result<Expr, ExprParseError> {
-        parse::read_one(s, source_name, self)
+    pub fn read_one<B: AsRef<[u8]>>(
+        &mut self,
+        s: B,
+        source_name: String,
+    ) -> Result<Expr, ExprParseError> {
+        parse::read_one(s.as_ref(), source_name, self)
     }
 
     /// Reads the source and returns everything found in it.
-    pub fn read_many(&mut self, s: &str, source_name: String) -> Result<Vec<Expr>, ExprParseError> {
-        parse::read_many(s, source_name, self)
+    pub fn read_many<B: AsRef<[u8]>>(
+        &mut self,
+        s: B,
+        source_name: String,
+    ) -> Result<Vec<Expr>, ExprParseError> {
+        parse::read_many(s.as_ref(), source_name, self)
     }
 
     /// Read and eval everything in the source file, returning

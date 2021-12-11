@@ -40,11 +40,9 @@
 mod compile;
 mod compression;
 mod execute;
-mod naive;
 
 pub use compile::compile;
 pub use execute::match_;
-pub use naive::match_naive;
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 

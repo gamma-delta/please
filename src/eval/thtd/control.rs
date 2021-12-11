@@ -43,7 +43,7 @@ pub fn if_let(
         Err(exn) => {
             let exn_name = engine.get_symbol_str(exn.id);
             match exn_name {
-                Some(name) if name.starts_with("assignment/") => {
+                Some(name) if name.starts_with(b"assignment/") => {
                     // The assignment failed, so run the second block
                     Ok(TailRec::TailRecur(args[3].to_owned(), env))
                 }
