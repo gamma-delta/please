@@ -243,7 +243,8 @@ impl<B: AsRef<[u8]>> Display for BstrFmt<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for &b in self.0.as_ref() {
             match b {
-                0x20..=0x7e => f.write_char(b as char)?,
+                // Printable characters and bell
+                0x20..=0x7e | 0x7 => f.write_char(b as char)?,
                 // pad it to a length of 2 with 0s if need be
                 ono => write!(f, "\\x{:02X}", ono)?,
             }
@@ -263,9 +264,8 @@ impl<B: AsRef<[u8]>> Debug for BstrFmt<B> {
                 b'\"' => write!(f, "\\\"")?,
                 b'\x0b' => write!(f, "\\f")?,
                 b'\x0c' => write!(f, "\\v")?,
-                b'\x07' => write!(f, "\\a")?,
                 b'\0' => write!(f, "\\0")?,
-                0x20..=0x7e => f.write_char(b as char)?,
+                0x20..=0x7e | 0x7 => f.write_char(b as char)?,
                 // pad it to a length of 2 with 0s if need be
                 ono => write!(f, "\\x{:02X}", ono)?,
             }
