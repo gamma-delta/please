@@ -74,7 +74,9 @@ impl Engine {
                 // plain ol variable binding
                 (Expr::Symbol(sym), _) => Ok(hashmap! {*sym => val}),
 
-                (Expr::Pair(spec_car, spec_cdr), Expr::Pair(val_car, val_cdr)) => {
+                (Expr::Pair(..) | Expr::LazyPair(..), Expr::Pair(..) | Expr::LazyPair(..)) => {
+                    let (spec_car, spec_cdr) = engine.split_cons(spec.to_owned())?;
+                    let (val_car, val_cdr) = engine.split_cons(val.to_owned())?;
                     let mut out = HashMap::new();
 
                     // Check for default exprs only in the lhs of pairs
@@ -86,19 +88,9 @@ impl Engine {
                     )? {
                         out.extend(defaulted);
                     } else {
-                        out.extend(recurse(
-                            engine,
-                            env.to_owned(),
-                            spec_car.to_owned(),
-                            val_car.to_owned(),
-                        )?);
+                        out.extend(recurse(engine, env.to_owned(), spec_car, val_car)?);
                     }
-                    out.extend(recurse(
-                        engine,
-                        env,
-                        spec_cdr.to_owned(),
-                        val_cdr.to_owned(),
-                    )?);
+                    out.extend(recurse(engine, env, spec_cdr, val_cdr)?);
 
                     Ok(out)
                 }
@@ -107,16 +99,12 @@ impl Engine {
                 // so when we have (cons z ...) with nil, z gets no value.
                 // when we match a pair with nil, that's the sign for no more values for the specs.
                 // (Then it gets "stuck" inside the None case.)
-                (Expr::Pair(spec_car, spec_cdr), Expr::Nil) => {
+                (Expr::Pair(..) | Expr::LazyPair(..), Expr::Nil) => {
+                    let (spec_car, spec_cdr) = engine.split_cons(spec.to_owned())?;
                     let mut out = HashMap::new();
 
-                    out.extend(recurse_opt(
-                        engine,
-                        env.to_owned(),
-                        spec_car.to_owned(),
-                        None,
-                    )?);
-                    out.extend(recurse_opt(engine, env, spec_cdr.to_owned(), None)?);
+                    out.extend(recurse_opt(engine, env.to_owned(), spec_car, None)?);
+                    out.extend(recurse_opt(engine, env, spec_cdr, None)?);
 
                     Ok(out)
                 }
