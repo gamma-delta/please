@@ -97,6 +97,11 @@ enum Opcode {
     /// One `byte` to show how many rules to store, then that many ruleptrs.
     /// `byte rule...`
     Sequence,
+    /// Match the first rule separated by the second rule, for things like
+    /// newline-separated values.
+    ///
+    /// `rule rule`
+    Split,
 
     // === Counting ===
     /// Match 0+ of the second argument.

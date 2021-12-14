@@ -20,6 +20,8 @@
   s* (any s)
   h* (any h)
 
+  int (/ 'd+ read/integer)
+
   nl (* (? (+ "\r" "\n")))
 })
 

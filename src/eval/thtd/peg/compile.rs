@@ -287,10 +287,11 @@ impl Builder<'_, '_> {
                 self.write_ruleptr(cursor, subpeg)?;
             }
             // Things taking 2 subpeg arguments
-            b"if" | b"if-not" => {
+            b"if" | b"if-not" | b"split" => {
                 let opc = match op {
                     b"if" => Opcode::If,
                     b"if-not" => Opcode::IfNot,
+                    b"split" => Opcode::Split,
                     ono => panic!("i forgor to impl {}", BstrFmt(ono)),
                 };
 

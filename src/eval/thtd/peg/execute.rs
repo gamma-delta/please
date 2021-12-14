@@ -72,7 +72,7 @@ pub fn match_(engine: &mut Engine, env: Gc<GcCell<Namespace>>, args: &[Value]) -
         env,
         debug,
     };
-    let matched = executor.match_(0, text, start_cursor as usize)?;
+    let matched = executor.execute_rule(0, text, start_cursor as usize)?;
     Ok(match matched {
         Some((_, stack)) => Engine::list_to_sexp(&stack),
         None => Expr::bool(false),
@@ -91,7 +91,7 @@ struct Executor<'code, 'engine> {
 }
 
 impl<'code> Executor<'code, '_> {
-    fn match_(
+    fn execute_rule(
         &mut self,
         mut bytecode_cursor: usize,
         full_text: &[u8],
@@ -166,7 +166,7 @@ impl<'code> Executor<'code, '_> {
                 let subrule_count = self.read_byte(&mut bytecode_cursor)?;
                 for _ in 0..subrule_count {
                     let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                    let matched = self.match_(ruleptr, full_text, text_cursor)?;
+                    let matched = self.execute_rule(ruleptr, full_text, text_cursor)?;
                     if matched.is_some() {
                         // yay!
                         return Ok(matched);
@@ -181,7 +181,7 @@ impl<'code> Executor<'code, '_> {
                 let mut stack = vec![];
                 for _ in 0..subrule_count {
                     let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                    let matched = self.match_(ruleptr, full_text, text_cursor + subcursor)?;
+                    let matched = self.execute_rule(ruleptr, full_text, text_cursor + subcursor)?;
                     let (len, substack) = if let Some(it) = matched {
                         it
                     } else {
@@ -191,6 +191,57 @@ impl<'code> Executor<'code, '_> {
                     stack.extend(substack);
                 }
                 Some((subcursor, stack))
+            }
+            Opcode::Split => {
+                let mainptr = self.read_u(&mut bytecode_cursor)? as _;
+                let sepptr = self.read_u(&mut bytecode_cursor)? as _;
+
+                // (split w ",")
+                // "a,b,c" should match all
+                // "a,b,c," should match the abc part.
+                // "a,b," is ab
+                // So, only push the sepptr if the mainptr makes it.
+                let mut subcursor = 0;
+                let mut stack = vec![];
+                let mut sep_len = 0;
+                let mut sep_stack = Vec::new();
+                for idx in 0.. {
+                    let main_match =
+                        self.execute_rule(mainptr, full_text, text_cursor + subcursor + sep_len)?;
+                    match main_match {
+                        None => {
+                            // We have to match at least once.
+                            return Ok(if idx == 0 {
+                                // we failed!
+                                None
+                            } else {
+                                // We failed to match a main after a separator, so don't include the sep's
+                                // matched text or stack
+                                Some((subcursor, stack))
+                            });
+                        }
+                        Some((len, substack)) => {
+                            // Now that we know main is matching (again),
+                            // we can push the separator.
+                            subcursor += sep_len + len;
+                            stack.extend(sep_stack);
+                            stack.extend(substack);
+                        }
+                    }
+
+                    let sep_match =
+                        self.execute_rule(sepptr, full_text, text_cursor + subcursor)?;
+                    match sep_match {
+                        None => {
+                            return Ok(Some((subcursor, stack)));
+                        }
+                        Some((len, substack)) => {
+                            sep_len = len;
+                            sep_stack = substack;
+                        }
+                    }
+                }
+                unreachable!()
             }
             // All the "match between X and Y of This"
             Opcode::Any
@@ -224,7 +275,7 @@ impl<'code> Executor<'code, '_> {
                 let mut subcursor = 0;
                 let mut stack = vec![];
                 for idx in 0.. {
-                    let matched = self.match_(ruleptr, full_text, text_cursor + subcursor)?;
+                    let matched = self.execute_rule(ruleptr, full_text, text_cursor + subcursor)?;
                     match matched {
                         Some((len, substack)) => {
                             if idx > max {
@@ -251,7 +302,7 @@ impl<'code> Executor<'code, '_> {
             }
             Opcode::Capture => {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                match self.match_(ruleptr, full_text, text_cursor) {
+                match self.execute_rule(ruleptr, full_text, text_cursor) {
                     Ok(Some((len, mut stack))) => {
                         let matched = &text[..len];
                         stack.push(Expr::string(matched.to_vec()));
@@ -264,7 +315,7 @@ impl<'code> Executor<'code, '_> {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
                 let replacer = self.read_expr(&mut bytecode_cursor)?.to_owned();
 
-                let matched = self.match_(ruleptr, full_text, text_cursor)?;
+                let matched = self.execute_rule(ruleptr, full_text, text_cursor)?;
                 match matched {
                     Some((len, stack)) => {
                         if replacer.is_callable() {
@@ -281,7 +332,7 @@ impl<'code> Executor<'code, '_> {
             }
             Opcode::Group => {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                match self.match_(ruleptr, full_text, text_cursor) {
+                match self.execute_rule(ruleptr, full_text, text_cursor) {
                     Ok(Some((len, stack))) => {
                         let stack_list = Engine::list_to_sexp(&stack);
                         Some((len, vec![stack_list]))
@@ -292,17 +343,17 @@ impl<'code> Executor<'code, '_> {
             Opcode::If | Opcode::IfNot => {
                 let rule_if = self.read_u(&mut bytecode_cursor)? as usize;
                 let rule_then = self.read_u(&mut bytecode_cursor)? as usize;
-                let matched = self.match_(rule_if, full_text, text_cursor)?;
+                let matched = self.execute_rule(rule_if, full_text, text_cursor)?;
                 match (opc, matched) {
                     (Opcode::If, Some(_)) | (Opcode::IfNot, None) => {
-                        self.match_(rule_then, full_text, text_cursor)?
+                        self.execute_rule(rule_then, full_text, text_cursor)?
                     }
                     _ => None,
                 }
             }
             Opcode::Not => {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                match self.match_(ruleptr, full_text, text_cursor)? {
+                match self.execute_rule(ruleptr, full_text, text_cursor)? {
                     Some(_) => None,
                     None => Some((0, vec![])),
                 }
@@ -310,14 +361,14 @@ impl<'code> Executor<'code, '_> {
             Opcode::Position => Some((0, vec![Expr::integer(text_cursor as _)])),
             Opcode::All => {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                match self.match_(ruleptr, full_text, text_cursor)? {
+                match self.execute_rule(ruleptr, full_text, text_cursor)? {
                     Some((len, stack)) if len == text.len() => Some((len, stack)),
                     _ => None,
                 }
             }
             Opcode::Jump => {
                 let ruleptr = self.read_u(&mut bytecode_cursor)? as usize;
-                self.match_(ruleptr, full_text, text_cursor)?
+                self.execute_rule(ruleptr, full_text, text_cursor)?
             }
         })
     }
