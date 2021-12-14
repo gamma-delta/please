@@ -20,9 +20,9 @@
   s* (any s)
   h* (any h)
 
-  int (/ 'd+ read/integer)
+  <-integer (/ 'd+ read/integer)
 
-  nl (* (? (+ "\r" "\n")))
+  nl (* (? "\r") "\n")
 })
 
 (defun peg/match (peg str [default start 0] [default debug false])

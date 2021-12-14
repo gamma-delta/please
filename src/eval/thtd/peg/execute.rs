@@ -1,13 +1,9 @@
-use std::{convert::TryInto, slice::SliceIndex};
+use std::convert::TryInto;
 
 use gc::{Gc, GcCell};
-use itertools::Itertools;
 
 use crate::{
-    eval::{
-        bad_arg_type,
-        thtd::{check_argc, check_min_argc},
-    },
+    eval::{bad_arg_type, thtd::check_argc},
     Engine, EvalResult, Exception, Expr, Namespace, Value,
 };
 
@@ -274,11 +270,13 @@ impl<'code> Executor<'code, '_> {
                 };
                 let mut subcursor = 0;
                 let mut stack = vec![];
-                for idx in 0.. {
+                for match_count in 0.. {
                     let matched = self.execute_rule(ruleptr, full_text, text_cursor + subcursor)?;
                     match matched {
                         Some((len, substack)) => {
-                            if idx > max {
+                            // we've matched now, bump up the match count.
+                            let match_count = match_count + 1;
+                            if match_count > max {
                                 // oh god we matched too many times!
                                 return Ok(None);
                             } else {
@@ -288,7 +286,7 @@ impl<'code> Executor<'code, '_> {
                             }
                         }
                         None => {
-                            return Ok(if idx < min {
+                            return Ok(if match_count < min {
                                 // oh no we failed and matched too few times
                                 None
                             } else {
