@@ -14,6 +14,17 @@ pub fn id_equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]
     Ok(engine.make_bool(true))
 }
 
+fn equal_with_lazy(engine: &mut Engine, lhs: Value, rhs: Value) -> Result<bool, Exception> {
+    Ok(match (&*lhs, &*rhs) {
+        (Expr::Pair(..) | Expr::LazyPair(..), Expr::Pair(..) | Expr::LazyPair(..)) => {
+            let (lhs_car, lhs_cdr) = engine.split_cons_verb(lhs)?.unwrap();
+            let (rhs_car, rhs_cdr) = engine.split_cons_verb(rhs)?.unwrap();
+            equal_with_lazy(engine, lhs_car, rhs_car)? && equal_with_lazy(engine, lhs_cdr, rhs_cdr)?
+        }
+        _ => lhs == rhs,
+    })
+}
+
 /// return whether things are equal w/o type juggling
 pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
     check_min_argc(engine, args, 1)?;
@@ -21,7 +32,7 @@ pub fn equal(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -
     for rhs in rest {
         // commutativity (?) means if a == b and a == c, b == c
         // so we just check the first against each
-        if lhs != rhs {
+        if !equal_with_lazy(engine, lhs.to_owned(), rhs.to_owned())? {
             return Ok(engine.make_bool(false));
         }
     }
