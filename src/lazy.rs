@@ -36,11 +36,11 @@ impl Engine {
             _ => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
         }
     }
-    pub fn split_cons_verb(
+    pub fn split_cons_verb<E: AsRef<Expr>>(
         &mut self,
-        expr: Gc<Expr>,
+        expr: E,
     ) -> Result<Option<(Gc<Expr>, Gc<Expr>)>, Exception> {
-        let val = match &*expr {
+        let val = match expr.as_ref() {
             Expr::Pair(car, cdr) => (car.to_owned(), cdr.to_owned()),
             Expr::LazyPair(car, cdr, ctx) => (self.eval_cell(ctx, car)?, self.eval_cell(ctx, cdr)?),
             _ => return Ok(None),
@@ -48,14 +48,14 @@ impl Engine {
         Ok(Some(val))
     }
     pub fn split_cons(&mut self, expr: Gc<Expr>) -> Result<(Gc<Expr>, Gc<Expr>), Exception> {
-        match self.split_cons_verb(expr.clone())? {
+        match self.split_cons_verb(&expr)? {
             Some(pair) => Ok(pair),
             None => Err(crate::eval::thtd::bad_arg_type(self, expr, 0, "pair")),
         }
     }
     /// Reify an expr by evaluating all contained LazyExprCells.
-    pub fn reify(&mut self, expr: &Gc<Expr>) -> Result<(), Exception> {
-        if let Some((car, cdr)) = &self.split_cons_verb(expr.clone())? {
+    pub fn reify<E: AsRef<Expr>>(&mut self, expr: E) -> Result<(), Exception> {
+        if let Some((car, cdr)) = &self.split_cons_verb(expr)? {
             self.reify(car)?;
             self.reify(cdr)?;
         }

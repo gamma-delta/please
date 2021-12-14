@@ -67,3 +67,16 @@ pub fn replace(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>])
         Expr::bool(false)
     })
 }
+
+/// Clone the value out of a transient.
+pub fn clone(engine: &mut Engine, _: Gc<GcCell<Namespace>>, args: &[Gc<Expr>]) -> EvalResult {
+    check_argc(engine, args, 1, 1)?;
+    match &*args[0] {
+        Expr::Transient(t) => borrow_transient(engine, t).map(|expr| {
+            // as per contract this is safe to unwrap
+            let expr = expr.as_ref().unwrap();
+            Gc::new((**expr).clone())
+        }),
+        _ => Err(bad_arg_type(engine, args[0].to_owned(), 0, "transient")),
+    }
+}

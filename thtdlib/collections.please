@@ -31,4 +31,4 @@
   (flat-map (\ ((k c)) (repeat k c))
     (map->list counter)))
 (defun counter/count (counter)
-  (fold (\ (acc (_ c)) (+ acc c)) 0 (map->list counter)))
+  (fold1 + 0 (map/values counter)))

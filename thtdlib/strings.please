@@ -2,4 +2,4 @@
   (let ([idx (string/find needle haystack)])
     (and idx (=0 idx))))
 
-(defun string/nth (s n) (string/slice s n n))
+(defun string/nth (s n) (string/slice s n (++ n)))

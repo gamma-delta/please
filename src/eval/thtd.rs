@@ -171,6 +171,7 @@ pub fn add_thtandard_library(engine: &mut Engine) {
         ("transient/has-value", transient::has_value as _),
         ("transient/update!", transient::update as _),
         ("transient/replace!", transient::replace as _),
+        ("transient/clone", transient::clone as _),
         ("map/remove!", transient::map::remove as _),
         (
             "map/remove/clobbered!",
