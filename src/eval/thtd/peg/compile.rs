@@ -260,13 +260,13 @@ impl Builder<'_, '_> {
             }
             // Things taking 1 subpeg argument
             b"any" | b"some" | b"opt" | b"?" | b"capture" | b"<-" | b"quote" | b"group"
-            | b"not" | b"!" | b"all" | b"do" => {
+            | b"quasiquote" | b"not" | b"!" | b"all" | b"do" => {
                 let (opc, real_name) = match op {
                     b"any" => (Opcode::Any, b"any".as_ref()),
                     b"some" => (Opcode::Some, b"some".as_ref()),
                     b"opt" | b"?" => (Opcode::Opt, b"opt".as_ref()),
                     b"capture" | b"<-" | b"quote" => (Opcode::Capture, b"capture".as_ref()),
-                    b"group" => (Opcode::Group, b"group".as_ref()),
+                    b"group" | b"quasiquote" => (Opcode::Group, b"group".as_ref()),
                     b"not" | b"!" => (Opcode::Not, b"not".as_ref()),
                     b"all" => (Opcode::All, b"all".as_ref()),
                     b"do" => (Opcode::Jump, b"do".as_ref()),
